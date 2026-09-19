@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from typing import TYPE_CHECKING, ClassVar
 
@@ -7,6 +8,7 @@ from numpy.testing import assert_array_equal
 from rdkit import Chem
 
 from prolif.datafiles import datapath
+from prolif.exceptions import FragmentedResidueError, error_handler
 from prolif.molecule import (
     Molecule,
     mol2_supplier,
@@ -221,3 +223,41 @@ def test_split_molecule_reassigns_mapindex(u: "Universe") -> None:
     assert lhs.n_residues == 1
     # if not reset, this would be 148
     assert lhs[0].GetAtomWithIdx(0).GetUnsignedProp("mapindex") == 0
+
+
+@pytest.mark.parametrize(
+    ("on_error", "context"),
+    [
+        (
+            "raise",
+            pytest.raises(
+                FragmentedResidueError,
+                match=r"The following residues are fragmented.+: ALA1.A.",
+            ),
+        ),
+        (
+            "warn",
+            pytest.warns(
+                UserWarning, match=r"The following residues are fragmented.+: ALA1.A."
+            ),
+        ),
+        (lambda _: None, nullcontext()),
+    ],
+)
+def test_disconnected_residue_handling(
+    on_error: Callable[[str], None] | str,
+    context: AbstractContextManager,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A residue that is fragmented due to invalid bond inferring should raise an
+    error rather than silently drop all but the last fragment"""
+    pdb = """\
+ATOM      1  N   ALA A   1       0.000   0.000   0.000  1.00  0.00           N
+ATOM      2  CA  ALA A   1      10.000  10.000  10.000  1.00  0.00           C
+ATOM      3  N   GLY A   2      20.000  20.000  20.000  1.00  0.00           N
+END
+"""
+    rdmol = Chem.MolFromPDBBlock(pdb, removeHs=False, sanitize=False)
+    monkeypatch.setattr(error_handler.fragmented_residue, "on_error", on_error)
+    with context:
+        Molecule(rdmol)
