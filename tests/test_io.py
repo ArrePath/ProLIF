@@ -424,7 +424,7 @@ class TestMoleculeStandardizer:
 
             all_bonds_info.append(
                 (
-                    {bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()},
+                    tuple(sorted((bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()))),
                     str(bond.GetBondType()),
                 )
             )
@@ -432,15 +432,15 @@ class TestMoleculeStandardizer:
         all_bonds_info.sort()
         assert_equal(
             [
-                ({1, 3}, "AROMATIC"),
-                ({1, 8}, "AROMATIC"),
-                ({0, 1}, "UNSPECIFIED"),
-                ({3, 5}, "AROMATIC"),
-                ({5, 6}, "AROMATIC"),
-                ({6, 7}, "AROMATIC"),
-                ({7, 8}, "AROMATIC"),
-                ({0, 2}, "DOUBLE"),
-                ({0, 4}, "SINGLE"),
+                ((0, 1), "UNSPECIFIED"),
+                ((0, 2), "DOUBLE"),
+                ((0, 4), "SINGLE"),
+                ((1, 3), "AROMATIC"),
+                ((1, 8), "AROMATIC"),
+                ((3, 5), "AROMATIC"),
+                ((5, 6), "AROMATIC"),
+                ((6, 7), "AROMATIC"),
+                ((7, 8), "AROMATIC"),
             ],
             all_bonds_info,
         )

@@ -169,7 +169,7 @@ def get_residues_near_ligand(
     return list(set(resids))
 
 
-def split_mol_by_residues(mol: Chem.Mol) -> list[Chem.Mol]:
+def split_mol_by_residues(mol: Chem.Mol, *, use_segid: bool = False) -> list[Chem.Mol]:
     """Splits a molecule in multiple fragments based on residues
 
     Parameters
@@ -191,7 +191,8 @@ def split_mol_by_residues(mol: Chem.Mol) -> list[Chem.Mol]:
         for frag in GetMolFrags(res, asMols=True, sanitizeFrags=False):
             # count number of unique residues in the fragment
             resids: dict[int, ResidueId] = {
-                a.GetIdx(): ResidueId.from_atom(a) for a in frag.GetAtoms()
+                a.GetIdx(): ResidueId.from_atom(a, use_segid=use_segid)
+                for a in frag.GetAtoms()
             }
             if len(set(resids.values())) > 1:
                 # split on peptide bonds
@@ -203,7 +204,25 @@ def split_mol_by_residues(mol: Chem.Mol) -> list[Chem.Mol]:
                 residues.extend(mols)
             else:
                 residues.append(frag)
-    return residues
+    # A missing intra-residue bond must not discard a disconnected piece when
+    # ResidueGroup indexes fragments by identity. Templates may repair that bond.
+    grouped: dict[ResidueId, Chem.Mol] = {}
+    for fragment in residues:
+        residue = fragment
+        key = ResidueId.from_atom(residue.GetAtomWithIdx(0), use_segid=use_segid)
+        if key in grouped:
+            residue = Chem.CombineMols(grouped[key], residue)
+            atoms = list(residue.GetAtoms())
+            if all(a.HasProp("mapindex") for a in atoms):
+                residue = Chem.RenumberAtoms(
+                    residue,
+                    sorted(
+                        range(len(atoms)),
+                        key=lambda i: atoms[i].GetUnsignedProp("mapindex"),
+                    ),
+                )
+        grouped[key] = residue
+    return list(grouped.values())
 
 
 def is_peptide_bond(bond: Chem.Bond, resids: dict[int, ResidueId]) -> bool:

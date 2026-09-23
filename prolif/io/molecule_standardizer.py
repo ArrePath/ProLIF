@@ -29,7 +29,7 @@ from prolif.io.template_engine import (
     TemplateEngine,
 )
 from prolif.molecule import Molecule
-from prolif.residue import Residue, ResidueGroup
+from prolif.residue import Residue
 
 #: Type alias for a template given as a ``(residue_name, rdkit_mol)`` pair.
 MolTemplate = tuple[str, Chem.Mol]
@@ -163,8 +163,18 @@ class MoleculeStandardizer:
         """
 
         # read as prolif molecule
-        if isinstance(input_topology, Molecule):
-            protein_mol = input_topology
+        destination = input_topology if isinstance(input_topology, Molecule) else None
+        if destination is not None:
+            # Templates and alias normalization must never mutate the caller
+            # until the complete candidate has been validated.
+            use_segid = destination._use_segid
+            protein_mol = Molecule(
+                Chem.Mol(destination),
+                use_segid=use_segid,
+                residues=[
+                    Residue(Chem.Mol(r), use_segid=use_segid) for r in destination
+                ],
+            )
 
         elif isinstance(input_topology, Chem.Mol):
             protein_mol = Molecule.from_rdkit(input_topology)
@@ -187,7 +197,8 @@ class MoleculeStandardizer:
 
         # standardize the protein molecule
         new_residues = []
-        for residue in protein_mol.residues.values():
+        original_residues = list(protein_mol)
+        for residue in original_residues:
             standardized_resname = self.convert_to_standard_resname(
                 resname=residue.resid.name.upper(), forcefield_name=forcefield_name
             )
@@ -229,10 +240,113 @@ class MoleculeStandardizer:
                 ) from e
             new_residues.append(fixed)
 
-        # update the protein molecule with the new residues
-        protein_mol.residues = ResidueGroup(new_residues)
+        corrected = Chem.RWMol(protein_mol)
+        for original, fixed in zip(original_residues, new_residues, strict=True):
+            self._apply_to_parent(corrected, original, fixed)
+        Chem.SanitizeMol(corrected)
+        candidate = Molecule.from_rdkit(corrected, use_segid=protein_mol._use_segid)
+        if destination is None:
+            return candidate
+        # All fallible preparation occurs above. Replace the RDKit graph and
+        # Python state only after constructing the complete result.
+        state = {**destination.__dict__, **candidate.__dict__}
+        Chem.Mol.__init__(destination, candidate)
+        destination.__dict__ = state
+        return destination
 
-        return protein_mol
+    @staticmethod
+    def _template_atom_mapping(
+        parent: Chem.Mol, original: Residue, fixed: Chem.Mol
+    ) -> list[int]:
+        """Validate atom identity and coordinates before projecting chemistry."""
+        expected = {a.GetUnsignedProp("mapindex") for a in original.GetAtoms()}
+        mapping = []
+        for atom in fixed.GetAtoms():
+            if not atom.HasProp("mapindex"):
+                raise ValueError("Template atom is missing mapindex provenance")
+            index = atom.GetUnsignedProp("mapindex")
+            if index not in expected or index in mapping:
+                raise ValueError(
+                    "Template atom provenance is not a unique correspondence"
+                )
+            source = parent.GetAtomWithIdx(index)
+            info, source_info = atom.GetPDBResidueInfo(), source.GetPDBResidueInfo()
+            if (
+                atom.GetAtomicNum() != source.GetAtomicNum()
+                or atom.GetIsotope() != source.GetIsotope()
+                or info is None
+                or source_info is None
+                or info.GetName() != source_info.GetName()
+                or info.GetResidueName() != source_info.GetResidueName()
+                or info.GetResidueNumber() != source_info.GetResidueNumber()
+                or info.GetChainId() != source_info.GetChainId()
+                or info.GetInsertionCode() != source_info.GetInsertionCode()
+                or info.GetAltLoc() != source_info.GetAltLoc()
+                or info.GetSegmentNumber() != source_info.GetSegmentNumber()
+            ):
+                raise ValueError("Template changed an atom's identity or residue")
+            if fixed.GetNumConformers() != parent.GetNumConformers():
+                raise ValueError("Template changed coordinate correspondence")
+            for conf in parent.GetConformers():
+                a = conf.GetAtomPosition(index)
+                b = fixed.GetConformer(conf.GetId()).GetAtomPosition(atom.GetIdx())
+                if tuple(a) != tuple(b):
+                    raise ValueError("Template changed source coordinates")
+            mapping.append(index)
+        if set(mapping) != expected:
+            raise ValueError("Template changed the source atom inventory")
+        return mapping
+
+    @staticmethod
+    def _apply_to_parent(
+        parent: Chem.RWMol, original: Residue, fixed: Chem.Mol
+    ) -> None:
+        """Project template chemistry, not fragment valence, by atom provenance."""
+        mapping = MoleculeStandardizer._template_atom_mapping(parent, original, fixed)
+        expected = set(mapping)
+        # Explicit Kekule bonds let full-graph sanitization determine aromatic
+        # [nH] and peptide valence, without copying isolated-residue H estimates.
+        fixed = Chem.Mol(fixed)
+        Chem.Kekulize(fixed, clearAromaticFlags=True)
+        edges = {
+            tuple(sorted((mapping[b.GetBeginAtomIdx()], mapping[b.GetEndAtomIdx()]))): b
+            for b in fixed.GetBonds()
+        }
+        old_edges = {
+            tuple(sorted((b.GetBeginAtomIdx(), b.GetEndAtomIdx()))): b
+            for i in expected
+            for b in parent.GetAtomWithIdx(i).GetBonds()
+            if b.GetBeginAtomIdx() in expected and b.GetEndAtomIdx() in expected
+        }
+        changed_atoms = {i for edge in old_edges.keys() ^ edges.keys() for i in edge}
+        if any(
+            parent.GetAtomWithIdx(i).GetChiralTag() != Chem.ChiralType.CHI_UNSPECIFIED
+            for i in changed_atoms
+        ):
+            raise ValueError(
+                "Template topology change cannot preserve assigned stereochemistry"
+            )
+        for edge, bond in old_edges.items():
+            replacement = edges.get(edge)
+            if (
+                replacement is None or replacement.GetBondType() != bond.GetBondType()
+            ) and bond.GetStereo() != Chem.BondStereo.STEREONONE:
+                raise ValueError(
+                    "Template bond change cannot preserve assigned stereochemistry"
+                )
+        for atom in fixed.GetAtoms():
+            target = parent.GetAtomWithIdx(mapping[atom.GetIdx()])
+            target.SetFormalCharge(atom.GetFormalCharge())
+            target.SetIsAromatic(False)
+        for i, j in old_edges.keys() - edges.keys():
+            parent.RemoveBond(i, j)
+        for (i, j), bond in edges.items():
+            target = parent.GetBondBetweenAtoms(i, j)
+            if target is None:
+                parent.AddBond(i, j, bond.GetBondType())
+            else:
+                target.SetBondType(bond.GetBondType())
+                target.SetIsAromatic(False)
 
     @staticmethod
     def forcefield_guesser(
