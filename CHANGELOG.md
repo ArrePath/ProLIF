@@ -8,7 +8,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Added `FragmentedResidueError` for when multiple residues share the
+  same `ResidueId`.
+- Added `OptionalException` base class to define the behaviour on specific runtime
+  errors that may be ignored or handled by the user.
+
 ### Fixed
+
+- Fixed a bug in the `"queue"` parallel strategy where the pickling/unpickling of the
+  RDKit molecules would silently redo the residue splitting without preserving the
+  original `use_segid` flag.
+- Fixed an issue in the `"queue"` parallel strategy where exceptions raised during
+  trajectory iteration would silently crash the background task and hang the process
+  indefinitely.
+- Fixed a bug in `split_mol_by_residues` which was ignoring the `use_segid` argument
+  when splitting neighbouring residues with the same resname and resnumber but a
+  different segment ID.
 
 ### Changed
 
