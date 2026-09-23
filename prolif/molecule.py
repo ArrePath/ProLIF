@@ -94,7 +94,7 @@ class Molecule(BaseRDKitMol):
         use_segid: bool = False,
         residues: list[Residue] | None = None,
     ) -> None:
-        super().__init__(mol)
+        super().__init__(mol)  # type: ignore[arg-type]
         if isinstance(mol, (str, bytes)):
             return
         # set mapping of atoms
@@ -102,7 +102,7 @@ class Molecule(BaseRDKitMol):
             atom.SetUnsignedProp("mapindex", atom.GetIdx())
         if residues is None:
             # split in residues
-            residues = split_mol_by_residues(self)
+            residues = split_mol_by_residues(self, use_segid=use_segid)
             residues = [Residue(mol, use_segid=use_segid) for mol in residues]
             residues.sort(key=attrgetter("resid"))
         self.residues = ResidueGroup(residues)
