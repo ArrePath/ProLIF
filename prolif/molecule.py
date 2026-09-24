@@ -13,6 +13,7 @@ import MDAnalysis as mda
 from rdkit import Chem
 from rdkit.Chem.AllChem import AssignBondOrdersFromTemplate
 
+from prolif._context import _INCOMPLETE_CONTEXT, _MolecularContext
 from prolif.rdkitmol import BaseRDKitMol
 from prolif.residue import Residue, ResidueGroup, ResidueId
 from prolif.utils import catch_rdkit_logs, catch_warning, split_mol_by_residues
@@ -78,7 +79,13 @@ class Molecule(BaseRDKitMol):
         mol[42] # by index (from 0 to n_residues-1)
         mol[prolif.ResidueId("TYR", 38, "A")] # by ResidueId
 
-    See :mod:`prolif.residue` for more information on residues
+    See :mod:`prolif.residue` for more information on residues.
+
+    Implicit H-bond detection uses one shared complete-graph snapshot. After editing
+    atoms, bonds or coordinates, rebuild with ``Molecule.from_rdkit`` before detection.
+    Existing residue references retain their earlier snapshot; they are not live views.
+    Supplied custom residues must agree with their authoritative parent before the
+    implicit path uses them. Invalid correspondence does not fall back to fragments.
 
     .. versionchanged:: 2.1.0
         Added `use_segid`.
@@ -95,7 +102,7 @@ class Molecule(BaseRDKitMol):
         residues: list[Residue] | None = None,
     ) -> None:
         super().__init__(mol)
-        self._use_segid = use_segid
+        self._context_use_segid = use_segid
         # set mapping of atoms
         for atom in self.GetAtoms():
             atom.SetUnsignedProp("mapindex", atom.GetIdx())
@@ -104,7 +111,30 @@ class Molecule(BaseRDKitMol):
             residues = split_mol_by_residues(self, use_segid=use_segid)
             residues = [Residue(mol, use_segid=use_segid) for mol in residues]
             residues.sort(key=attrgetter("resid"))
+        else:
+            # A residue already attached elsewhere remains that old snapshot.
+            # Do not rebind references held by another molecule/caller.
+            supplied = residues
+            residues = [
+                Residue(Chem.Mol(r), use_segid=use_segid)
+                if hasattr(r, "_context")
+                else r
+                for r in supplied
+            ]
+            for original, cloned in zip(supplied, residues, strict=True):
+                if cloned is not original:
+                    cloned.resid = copy.copy(original.resid)
+        if self.HasProp(_INCOMPLETE_CONTEXT) or any(
+            r.HasProp(_INCOMPLETE_CONTEXT) for r in residues
+        ):
+            self.SetBoolProp(_INCOMPLETE_CONTEXT, True)
+            for residue in residues:
+                residue.SetBoolProp(_INCOMPLETE_CONTEXT, True)
         self.residues = ResidueGroup(residues)
+        self._context = _MolecularContext(self, residues, use_segid=use_segid)
+        for owner, residue in enumerate(residues):
+            residue._context = self._context
+            residue._context_owner = owner
 
     @classmethod
     def from_mda(
@@ -595,29 +625,55 @@ def split_molecule(
         Fixed the issue where the underlying residues were using parent atom indices
         of the input molecule instead of the new ones, often leading to indexing errors.
 
+    Notes
+    -----
+    Returned residues are independent copies; the input and its mappings remain
+    unchanged. Noncovalent partitions receive fresh implicit H-bond contexts. If any
+    bond crosses the partition, implicit analysis of both children and every nonempty
+    descendant is rejected. Ordinary splitting and unrelated detectors remain usable.
+    The guard survives supported reconstruction, standardization and transport, but
+    cannot survive arbitrary exports that discard RDKit properties. Even a water later
+    separated from a marked child remains blocked. Supply independently prepared
+    complete chemistry rather than rewrapping a known cut graph.
+
     """
-    residues: tuple[list[Residue], list[Residue]] = [], []
-    indices: dict[bool, int] = {True: 0, False: 0}
-    parent_to_new: tuple[defaultdict[int, int], defaultdict[int, int]] = (
-        defaultdict(int),
-        defaultdict(int),
+    groups: dict[bool, list[Residue]] = {True: [], False: []}
+    membership: dict[int, bool] = {}
+    for residue in mol:
+        side = bool(predicate(residue.resid))
+        cloned = Residue(Chem.Mol(residue), use_segid=mol._context_use_segid)
+        cloned.resid = copy.copy(residue.resid)
+        for atom in cloned.GetAtoms():
+            index = atom.GetUnsignedProp("mapindex")
+            if index >= mol.GetNumAtoms() or index in membership:
+                raise ValueError("Cannot split non-bijective residue atom mappings")
+            membership[index] = side
+        groups[side].append(cloned)
+    if len(membership) != mol.GetNumAtoms():
+        raise ValueError("Cannot split residues that do not cover their parent")
+    cuts_bond = any(
+        membership[b.GetBeginAtomIdx()] != membership[b.GetEndAtomIdx()]
+        for b in mol.GetBonds()
     )
-    with Chem.RWMol(mol) as lhs, Chem.RWMol(mol) as rhs:
-        for residue in mol:
-            is_lhs = predicate(residue.resid)
-            del_target = rhs if is_lhs else lhs
+    children = []
+    for side in (True, False):
+        # RDKit retains surviving parent order, not residue traversal order.
+        retained = [i for i in range(mol.GetNumAtoms()) if membership[i] == side]
+        mapping = {old: new for new, old in enumerate(retained)}
+        with Chem.RWMol(mol) as graph:
+            for i in range(mol.GetNumAtoms()):
+                if i not in mapping:
+                    graph.RemoveAtom(i)
+        if cuts_bond:
+            graph.SetBoolProp(_INCOMPLETE_CONTEXT, True)
+        for residue in groups[side]:
             for atom in residue.GetAtoms():
-                parent_idx = atom.GetUnsignedProp("mapindex")
-                del_target.RemoveAtom(parent_idx)
-                parent_to_new[is_lhs][parent_idx] = indices[is_lhs]
-                indices[is_lhs] += 1
-            residues[is_lhs].append(residue)
-    for mapping, reslist in zip(parent_to_new, residues, strict=True):
-        for residue in reslist:
-            for atom in residue.GetAtoms():
-                parent_idx = atom.GetUnsignedProp("mapindex")
-                new_idx = mapping[parent_idx]
-                atom.SetUnsignedProp("mapindex", new_idx)
-    return Molecule(lhs.GetMol(), residues=residues[1]), Molecule(
-        rhs.GetMol(), residues=residues[0]
-    )
+                atom.SetUnsignedProp(
+                    "mapindex", mapping[atom.GetUnsignedProp("mapindex")]
+                )
+        children.append(
+            Molecule(
+                graph.GetMol(), residues=groups[side], use_segid=mol._context_use_segid
+            )
+        )
+    return children[0], children[1]

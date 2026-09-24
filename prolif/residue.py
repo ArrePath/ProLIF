@@ -16,6 +16,7 @@ from prolif.rdkitmol import BaseRDKitMol
 if TYPE_CHECKING:
     from rdkit import Chem
 
+    from prolif._context import _MolecularContext
     from prolif.typeshed import ResidueKey
 
 _RE_RESID = re.compile(
@@ -170,6 +171,9 @@ class Residue(BaseRDKitMol):
     .. versionchanged:: 2.1.0
         Added `use_segid`.
     """
+
+    _context: "_MolecularContext"
+    _context_owner: int
 
     def __init__(self, mol: "Chem.Mol", *, use_segid: bool = False):
         super().__init__(mol)

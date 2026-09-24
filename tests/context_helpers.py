@@ -2,6 +2,7 @@
 
 import gzip
 from math import acos, asin, degrees
+from typing import cast
 
 import gemmi
 import numpy as np
@@ -9,15 +10,19 @@ from rdkit import Chem
 
 from prolif.datafiles import datapath
 from prolif.io import MoleculeStandardizer
+from prolif.residue import Residue
 
 
-def named(mol, name):
-    return next(
-        a for a in mol.GetAtoms() if a.GetPDBResidueInfo().GetName().strip() == name
+def named(mol: Chem.Mol, name: str) -> Chem.Atom:
+    return cast(
+        Chem.Atom,
+        next(
+            a for a in mol.GetAtoms() if a.GetPDBResidueInfo().GetName().strip() == name
+        ),
     )
 
 
-def load_pair(source_format="pdb"):
+def load_pair(source_format: str = "pdb") -> tuple[Chem.Mol, Residue]:
     data = datapath / "implicitHbond"
     text = gzip.decompress((data / f"1HSG.{source_format}.gz").read_bytes()).decode()
     if source_format == "cif":
@@ -51,7 +56,9 @@ def load_pair(source_format="pdb"):
     return protein, ligand
 
 
-def donor_geometry(mol, index, remote):
+def donor_geometry(
+    mol: Chem.Mol, index: int, remote: np.ndarray
+) -> tuple[list[float], float]:
     xyz = mol.GetConformer().GetPositions()
     center = xyz[index]
     vectors = [

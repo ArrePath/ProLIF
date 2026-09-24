@@ -11,7 +11,7 @@ from prolif.residue import Residue
 from tests.context_helpers import load_pair, named
 
 
-def signature(mol):
+def signature(mol: Chem.Mol) -> tuple:
     return (
         Chem.MolToSmiles(mol),
         [
@@ -30,7 +30,7 @@ def signature(mol):
     )
 
 
-def test_charges_reach_complete_parent():
+def test_charges_reach_complete_parent() -> None:
     source, _ = load_pair()
     prepared = MoleculeStandardizer()(source)
     for resid, name, charge in [
@@ -48,7 +48,9 @@ def test_charges_reach_complete_parent():
 
 @pytest.mark.parametrize("mixed_h", [False, True])
 @pytest.mark.parametrize("reverse", [False, True])
-def test_source_atoms_coordinates_and_hydrogens_survive(mixed_h, reverse):
+def test_source_atoms_coordinates_and_hydrogens_survive(
+    mixed_h: bool, reverse: bool
+) -> None:
     source, _ = load_pair()
     if mixed_h:
         source = Chem.AddHs(
@@ -69,8 +71,11 @@ def test_source_atoms_coordinates_and_hydrogens_survive(mixed_h, reverse):
             )
 
 
-@pytest.mark.parametrize("bad_result", ["raise", "duplicate", "missing", "identity"])
-def test_failed_later_engine_leaves_prolif_input_unchanged(bad_result):
+@pytest.mark.parametrize(
+    "bad_result",
+    ["raise", "duplicate", "missing", "identity", "coordinate", "inventory"],
+)
+def test_failed_later_engine_leaves_prolif_input_unchanged(bad_result: str) -> None:
     raw = Chem.MolFromSequence("AH")
     for atom in raw.GetAtoms():
         if atom.GetPDBResidueInfo().GetResidueNumber() == 2:
@@ -81,10 +86,12 @@ def test_failed_later_engine_leaves_prolif_input_unchanged(bad_result):
     engine = standardizer.engines["HID"]
 
     class BadEngine:
-        def n_heavy_atoms(self):
+        name = "HID"
+
+        def n_heavy_atoms(self) -> int:
             return engine.n_heavy_atoms()
 
-        def apply(self, residue):
+        def apply(self, residue: Residue) -> Residue:
             if bad_result == "raise":
                 raise ValueError("deliberate later engine failure")
             result = engine.apply(residue)
@@ -94,17 +101,25 @@ def test_failed_later_engine_leaves_prolif_input_unchanged(bad_result):
                 )
             elif bad_result == "missing":
                 result.GetAtomWithIdx(0).ClearProp("mapindex")
+            elif bad_result == "coordinate":
+                result.AddConformer(Chem.Conformer(result.GetNumAtoms()))
+            elif bad_result == "inventory":
+                changed = Chem.RWMol(result)
+                changed.RemoveAtom(changed.GetNumAtoms() - 1)
+                result = Residue(changed.GetMol())
             else:
                 result.GetAtomWithIdx(0).SetIsotope(15)
             return result
 
     standardizer.engines["HID"] = BadEngine()
-    with pytest.raises(ValueError, match=r"deliberate|provenance|identity"):
+    with pytest.raises(
+        ValueError, match=r"deliberate|provenance|identity|coordinate|inventory"
+    ):
         standardizer(source)
     assert (signature(source), [signature(r) for r in source]) == before
 
 
-def test_inplace_commit_retains_old_residue_snapshot():
+def test_inplace_commit_retains_old_residue_snapshot() -> None:
     source, _ = load_pair()
     mol = Molecule.from_rdkit(source)
     old = mol["ASP29.B"]
@@ -116,17 +131,19 @@ def test_inplace_commit_retains_old_residue_snapshot():
     assert mol.GetAtomWithIdx(idx).GetFormalCharge() == -1
 
 
-def test_engine_reordering_is_mapped_not_zipped():
+def test_engine_reordering_is_mapped_not_zipped() -> None:
     source = Chem.MolFromSequence("ADK")
     normal = MoleculeStandardizer()(source)
     standardizer = MoleculeStandardizer()
     engine = standardizer.engines["ASP"]
 
     class ReorderEngine:
-        def n_heavy_atoms(self):
+        name = "ASP"
+
+        def n_heavy_atoms(self) -> int:
             return engine.n_heavy_atoms()
 
-        def apply(self, residue):
+        def apply(self, residue: Residue) -> Residue:
             prepared = engine.apply(residue)
             return Residue(
                 Chem.RenumberAtoms(
@@ -141,7 +158,7 @@ def test_engine_reordering_is_mapped_not_zipped():
     assert reordered.GetAtomWithIdx(idx).GetFormalCharge() == -1
 
 
-def test_rdkit_template_preserves_reordered_existing_h():
+def test_rdkit_template_preserves_reordered_existing_h() -> None:
     source, _ = load_pair()
     source = Chem.AddHs(source, onlyOnAtoms=[972], addCoords=True, addResidueInfo=True)
     source = Chem.RenumberAtoms(source, list(reversed(range(source.GetNumAtoms()))))
@@ -161,7 +178,46 @@ def test_rdkit_template_preserves_reordered_existing_h():
     )
 
 
-def test_template_can_restore_missing_intra_residue_bond():
+@pytest.mark.parametrize("change", ["hydrogen", "stereo"])
+def test_template_cannot_rewire_source_hydrogen_or_assigned_stereo(change: str) -> None:
+    raw = Chem.MolFromSequence("K")
+    nz = named(raw, "NZ").GetIdx()
+    raw = Chem.AddHs(raw, onlyOnAtoms=[nz], addResidueInfo=True)
+    raw.AddConformer(Chem.Conformer(raw.GetNumAtoms()))
+    standardizer = MoleculeStandardizer()
+    engine = standardizer.engines["LYS"]
+
+    class RewireEngine:
+        name = "LYS"
+
+        def n_heavy_atoms(self) -> int:
+            return engine.n_heavy_atoms()
+
+        def apply(self, residue: Residue) -> Residue:
+            prepared = engine.apply(residue)
+            changed = Chem.RWMol(prepared)
+            if change == "hydrogen":
+                h = next(a for a in prepared.GetAtoms() if a.GetAtomicNum() == 1)
+                changed.RemoveBond(h.GetIdx(), named(prepared, "NZ").GetIdx())
+                changed.AddBond(
+                    h.GetIdx(), named(prepared, "N").GetIdx(), Chem.BondType.SINGLE
+                )
+            else:
+                ca = named(prepared, "CA").GetIdx()
+                changed.RemoveBond(ca, named(prepared, "CB").GetIdx())
+                changed.AddBond(
+                    ca, named(prepared, "CG").GetIdx(), Chem.BondType.SINGLE
+                )
+            return Residue(changed.GetMol())
+
+    standardizer.engines["LYS"] = RewireEngine()
+    before = signature(raw)
+    with pytest.raises(ValueError, match=r"hydrogen|stereochemistry"):
+        standardizer(raw)
+    assert signature(raw) == before
+
+
+def test_template_can_restore_missing_intra_residue_bond() -> None:
     source = Chem.MolFromSequence("ADK")
     expected = MoleculeStandardizer()(source)
     r = Molecule.from_rdkit(source)[1]

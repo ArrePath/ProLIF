@@ -7,10 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Molecular context snapshots for implicit H-bond classification and geometry, retaining
+  inter-residue chemistry while reporting the original residue-local and parent indices.
 
 ### Fixed
+- Apply standardization to the complete parent transactionally, preserving source atoms,
+  coordinates, existing hydrogen attachments and mapped stereochemistry. RDKit inputs
+  remain unchanged; ProLIF inputs retain same-object successful updates.
+- Preserve all global recursive SMARTS matches, rather than truncating at RDKit's defaults.
+- Preserve atom order and chain/segment namespace when splitting molecules.
 
 ### Changed
+- Require RDKit >=2024.3.1 for nontruncating recursive substructure searches.
+- Splitting now copies residues without mutating the input's atom mappings. Residue
+  object identity is no longer shared between the input and returned molecules.
+- Implicit H-bonds reject covalently cut split children and their descendants, including
+  later-separated disconnected components. Rewrapping or standardization cannot restore
+  missing context; supply independently prepared complete chemistry. This provenance
+  guard survives supported copy/pickle paths, not arbitrary exports dropping properties.
+- Attached residues use stable snapshots: rebuild after deliberate graph/coordinate edits.
+  Old references remain old snapshots after successful standardization. Standalone
+  residues use only their supplied graph. Divergent custom caches and cross-residue
+  returned SMARTS tuples raise explicit implicit-path errors instead of silent fallback.
+  Other interaction algorithms are unchanged; this is not a general fragmentation fix.
 
 ### Deprecated
 

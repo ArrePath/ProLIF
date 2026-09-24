@@ -19,6 +19,7 @@ from rdkit import Geometry
 from rdkit.Chem import MolFromSmarts
 from rdkit.Chem.rdchem import HybridizationType
 
+from prolif._context import _geometry, _matches
 from prolif.interactions.base import (
     BasePiStacking,
     Distance,
@@ -613,6 +614,16 @@ class ImplicitHBAcceptor(Distance, VdWContact):
         geometry checks for performance reasons. Defaults to False.
 
 
+    Notes
+    -----
+    Attached residues match and measure geometry in their complete molecular snapshot;
+    returned indices still refer to the requested residues and their owning molecules.
+    Recursive SMARTS may inspect other residues, but returned multi-atom tuples must
+    stay within one owner. Standalone residues supply only their own graph as context.
+    Known covalent-cut descendants are rejected, even after rewrapping/standardization.
+    This does not repair missing source bonds, choose protonation, or change explicit-H
+    and other interaction algorithms. Rebuild after intentional molecular edits.
+
     .. versionadded:: 2.2.0
 
     .. versionchanged:: 2.2.1
@@ -684,7 +695,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
         water_in_prot_res = self.check_water_residue(prot_res)
         water_in_lig_res = self.check_water_residue(lig_res)
 
-        for interaction_data in super().detect(lig_res, prot_res):
+        for interaction_data in self._context_candidates(lig_res, prot_res):
             if (
                 # If the interaction involves water residues
                 (water_in_prot_res or water_in_lig_res)
@@ -743,6 +754,24 @@ class ImplicitHBAcceptor(Distance, VdWContact):
                     interaction_data, lig_res=lig_res, prot_res=prot_res
                 )
 
+    def _context_candidates(
+        self, lig_res: "Residue", prot_res: "Residue"
+    ) -> Iterator["InteractionMetadata"]:
+        # Partition full-graph matches by anchor owner before forming pairs.
+        # Metadata remains residue-local; neighbors used in geometry are not hits.
+        for lig_match, prot_match in product(
+            _matches(lig_res, self.lig_pattern), _matches(prot_res, self.prot_pattern)
+        ):
+            _, lig_xyz, lig_index = _geometry(lig_res, lig_match[0])
+            _, prot_xyz, prot_index = _geometry(prot_res, prot_match[0])
+            distance = Geometry.Point3D(*lig_xyz[lig_index]).Distance(
+                Geometry.Point3D(*prot_xyz[prot_index])
+            )
+            if distance <= self.distance:
+                yield self.metadata(
+                    lig_res, prot_res, lig_match, prot_match, distance=distance
+                )
+
     def check_geometry(
         self,
         interaction_data: "InteractionMetadata",
@@ -772,9 +801,11 @@ class ImplicitHBAcceptor(Distance, VdWContact):
 
         # Get the atoms involved in the interaction
         lig_atom_idx = interaction_data["indices"]["ligand"][0]
-        lig_atom = lig_res.GetAtomWithIdx(lig_atom_idx)
+        lig_mol, _, lig_global = _geometry(lig_res, lig_atom_idx)
+        lig_atom = lig_mol.GetAtomWithIdx(lig_global)
         prot_atom_idx = interaction_data["indices"]["protein"][0]
-        prot_atom = prot_res.GetAtomWithIdx(prot_atom_idx)
+        prot_mol, _, prot_global = _geometry(prot_res, prot_atom_idx)
+        prot_atom = prot_mol.GetAtomWithIdx(prot_global)
 
         # Initialize the interaction data
         ideal_acceptor_atom_angle = None
@@ -890,8 +921,14 @@ class ImplicitHBAcceptor(Distance, VdWContact):
 
         """
         # Hbond probability is based on the Autodock Vina Hbond interaction term
-        lig_atom = lig_res.GetAtomWithIdx(interaction_data["indices"]["ligand"][0])
-        prot_atom = prot_res.GetAtomWithIdx(interaction_data["indices"]["protein"][0])
+        lig_mol, _, lig_index = _geometry(
+            lig_res, interaction_data["indices"]["ligand"][0]
+        )
+        prot_mol, _, prot_index = _geometry(
+            prot_res, interaction_data["indices"]["protein"][0]
+        )
+        lig_atom = lig_mol.GetAtomWithIdx(lig_index)
+        prot_atom = prot_mol.GetAtomWithIdx(prot_index)
         vdw_sum = self._get_radii_sum(lig_atom.GetSymbol(), prot_atom.GetSymbol())
         d_diff = interaction_data["distance"] - vdw_sum
 
@@ -949,7 +986,9 @@ class ImplicitHBAcceptor(Distance, VdWContact):
         float
             The angle in degrees."""
 
-        res_atom = res.GetAtomWithIdx(res_atom_idx)
+        mol, xyz, center = _geometry(res, res_atom_idx)
+        _, remote_xyz, remote = _geometry(remote_res, remote_res_atom_idx)
+        res_atom = mol.GetAtomWithIdx(center)
         nearby_heavy_atoms = [
             atom for atom in res_atom.GetNeighbors() if atom.GetAtomicNum() != 1
         ]
@@ -962,9 +1001,9 @@ class ImplicitHBAcceptor(Distance, VdWContact):
         angles = []
         for nearby_heavy_atom in nearby_heavy_atoms:
             # Get the coordinates of the atoms
-            nearby_coords = Geometry.Point3D(*res.xyz[nearby_heavy_atom.GetIdx()])
-            res_atom_coords = Geometry.Point3D(*res.xyz[res_atom_idx])
-            far_atom_coords = Geometry.Point3D(*remote_res.xyz[remote_res_atom_idx])
+            nearby_coords = Geometry.Point3D(*xyz[nearby_heavy_atom.GetIdx()])
+            res_atom_coords = Geometry.Point3D(*xyz[center])
+            far_atom_coords = Geometry.Point3D(*remote_xyz[remote])
 
             # Calculate the angle
             res2nearby = res_atom_coords.DirectionVector(nearby_coords)
@@ -1000,7 +1039,9 @@ class ImplicitHBAcceptor(Distance, VdWContact):
         float
             The angle in degrees.
         """
-        res_atom = res.GetAtomWithIdx(res_atom_idx)
+        mol, xyz, center = _geometry(res, res_atom_idx)
+        _, remote_xyz, remote = _geometry(remote_res, remote_res_atom_idx)
+        res_atom = mol.GetAtomWithIdx(center)
         nearby_heavy_atoms = [
             atom for atom in res_atom.GetNeighbors() if atom.GetAtomicNum() != 1
         ]
@@ -1014,7 +1055,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
                         nearby_nearby_atom
                         for nearby_nearby_atom in each_atom.GetNeighbors()
                         if nearby_nearby_atom.GetAtomicNum() != 1
-                        and nearby_nearby_atom.GetIdx() != res_atom_idx
+                        and nearby_nearby_atom.GetIdx() != center
                     ]
                 )
             nearby_heavy_atoms.extend(nearby_nearby_atoms)
@@ -1022,10 +1063,10 @@ class ImplicitHBAcceptor(Distance, VdWContact):
         # Get the coordinates of the atoms
         nearby_atom_1_idx = nearby_heavy_atoms[0].GetIdx()
         nearby_atom_2_idx = nearby_heavy_atoms[1].GetIdx()
-        res_atom_coords = Geometry.Point3D(*res.xyz[res_atom_idx])
-        nearby_atom_1_coords = Geometry.Point3D(*res.xyz[nearby_atom_1_idx])
-        nearby_atom_2_coords = Geometry.Point3D(*res.xyz[nearby_atom_2_idx])
-        remote_atom_coords = Geometry.Point3D(*remote_res.xyz[remote_res_atom_idx])
+        res_atom_coords = Geometry.Point3D(*xyz[center])
+        nearby_atom_1_coords = Geometry.Point3D(*xyz[nearby_atom_1_idx])
+        nearby_atom_2_coords = Geometry.Point3D(*xyz[nearby_atom_2_idx])
+        remote_atom_coords = Geometry.Point3D(*remote_xyz[remote])
 
         # Calculate the normal vector of the plane
         atom2nearby_1 = res_atom_coords.DirectionVector(nearby_atom_1_coords)

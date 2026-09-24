@@ -156,9 +156,12 @@ class MoleculeStandardizer:
 
         .. important::
             If your input for `standardize` is a :class:`prolif.Molecule`, it
-            will modify your original molecule in place. Your residue names will be
-            updated to the standardized names and residue's bond orders will be fixed
-            to the corresponding protonated states.
+            will update the same object only after complete candidate validation.
+            Parent and residue chemistry are corrected together; failures leave the
+            caller unchanged. Ordinary RDKit inputs are not mutated. Existing residue
+            references remain old snapshots, and retained Atom/Bond handles are not
+            guaranteed across replacement. No atoms or hydrogen coordinates are added.
+            Incomplete-context provenance from covalent splitting is never cleared.
 
         """
 
@@ -167,7 +170,7 @@ class MoleculeStandardizer:
         if destination is not None:
             # Templates and alias normalization must never mutate the caller
             # until the complete candidate has been validated.
-            use_segid = destination._use_segid
+            use_segid = destination._context_use_segid
             protein_mol = Molecule(
                 Chem.Mol(destination),
                 use_segid=use_segid,
@@ -244,7 +247,10 @@ class MoleculeStandardizer:
         for original, fixed in zip(original_residues, new_residues, strict=True):
             self._apply_to_parent(corrected, original, fixed)
         Chem.SanitizeMol(corrected)
-        candidate = Molecule.from_rdkit(corrected, use_segid=protein_mol._use_segid)
+        candidate = Molecule.from_rdkit(
+            corrected, use_segid=protein_mol._context_use_segid
+        )
+        candidate._context.require_coherent()
         if destination is None:
             return candidate
         # All fallible preparation occurs above. Replace the RDKit graph and
@@ -295,6 +301,17 @@ class MoleculeStandardizer:
             mapping.append(index)
         if set(mapping) != expected:
             raise ValueError("Template changed the source atom inventory")
+        for atom in fixed.GetAtoms():
+            if atom.GetAtomicNum() == 1:
+                source = parent.GetAtomWithIdx(mapping[atom.GetIdx()])
+                original_neighbors = {
+                    n.GetIdx() for n in source.GetNeighbors()
+                } & expected
+                fixed_neighbors = {mapping[n.GetIdx()] for n in atom.GetNeighbors()}
+                # A supplied but unbound H may gain a missing template bond;
+                # an existing attachment (including an external one) cannot move.
+                if source.GetDegree() and original_neighbors != fixed_neighbors:
+                    raise ValueError("Template changed an existing hydrogen attachment")
         return mapping
 
     @staticmethod
@@ -341,10 +358,10 @@ class MoleculeStandardizer:
         for i, j in old_edges.keys() - edges.keys():
             parent.RemoveBond(i, j)
         for (i, j), bond in edges.items():
-            target = parent.GetBondBetweenAtoms(i, j)
-            if target is None:
+            if (i, j) not in old_edges:
                 parent.AddBond(i, j, bond.GetBondType())
             else:
+                target = parent.GetBondBetweenAtoms(i, j)
                 target.SetBondType(bond.GetBondType())
                 target.SetIsAromatic(False)
 
