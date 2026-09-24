@@ -2052,7 +2052,7 @@ wheels = [
 
 [[package]]
 name = "prolif"
-version = "0.0.0"
+version = "2.2.2+arrepath.1"
 source = { editable = "." }
 dependencies = [
     { name = "dill" },
