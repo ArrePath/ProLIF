@@ -4,7 +4,7 @@ No parent/residue back-references: residues share one graph and query cache.
 Rebuild a Molecule after deliberately editing its graph or coordinates.
 """
 
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Any, cast
 
 import numpy as np
 from rdkit import Chem
@@ -31,7 +31,8 @@ def _require_complete(mol: Chem.Mol) -> None:
 
 
 def _all_matches(mol: Chem.Mol, query: Chem.Mol) -> tuple[tuple[int, ...], ...]:
-    params = Chem.SubstructMatchParameters()
+    # RDKit's generated stubs mis-type these native writable query parameters.
+    params = cast(Any, Chem.SubstructMatchParameters())
     params.maxMatches = 0
     params.maxRecursiveMatches = 0
     return cast(tuple[tuple[int, ...], ...], mol.GetSubstructMatches(query, params))
@@ -92,7 +93,7 @@ class _MolecularContext:
     def _atom_index(self, atom: Chem.Atom, resid: ResidueId, *, use_segid: bool) -> int:
         if not atom.HasProp("mapindex"):
             raise ValueError("missing atom mapindex")
-        index = atom.GetUnsignedProp("mapindex")
+        index = cast(int, atom.GetUnsignedProp("mapindex"))
         if index >= self.mol.GetNumAtoms() or index in self.parent_to_local:
             raise ValueError("atom mapping is not bijective")
         parent_atom = self.mol.GetAtomWithIdx(index)
@@ -116,13 +117,17 @@ class _MolecularContext:
                 index = self._atom_index(atom, residue.resid, use_segid=use_segid)
                 self.parent_to_local[index] = owner, atom.GetIdx()
                 mapping.append(index)
-            insertion_codes = {
-                info.GetInsertionCode().strip()
+            source_owners = {
+                (
+                    info.GetChainId().strip(),
+                    info.GetSegmentNumber(),
+                    info.GetInsertionCode().strip(),
+                )
                 for atom in residue.GetAtoms()
                 if (info := atom.GetPDBResidueInfo()) is not None
             }
-            if len(insertion_codes) > 1:
-                raise ValueError("residue namespace cannot distinguish insertion codes")
+            if len(source_owners) > 1:
+                raise ValueError("residue namespace cannot distinguish source owners")
             self.local_to_parent.append(tuple(mapping))
             if bool(residue.GetNumConformers()) != (self._xyz is not None):
                 raise ValueError("missing coordinate correspondence")

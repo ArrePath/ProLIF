@@ -26,6 +26,19 @@ if TYPE_CHECKING:
     Self = TypeVar("Self", bound=BaseRDKitMol)
 
 
+def _independent_residues(residues: list[Residue], *, use_segid: bool) -> list[Residue]:
+    """Do not rebind snapshots retained by another molecule or caller."""
+    independent = []
+    for residue in residues:
+        if hasattr(residue, "_context"):
+            cloned = Residue(Chem.Mol(residue), use_segid=use_segid)
+            cloned.resid = copy.copy(residue.resid)
+            independent.append(cloned)
+        else:
+            independent.append(residue)
+    return independent
+
+
 class Molecule(BaseRDKitMol):
     """Main molecule class that behaves like an RDKit :class:`~rdkit.Chem.rdchem.Mol`
     with extra attributes (see examples below). The main purpose of this class
@@ -96,12 +109,14 @@ class Molecule(BaseRDKitMol):
 
     def __init__(
         self,
-        mol: Chem.Mol,
+        mol: Chem.Mol | str | bytes,
         *,
         use_segid: bool = False,
         residues: list[Residue] | None = None,
     ) -> None:
-        super().__init__(mol)
+        super().__init__(mol)  # type: ignore[arg-type]
+        if isinstance(mol, str | bytes):
+            return
         self._context_use_segid = use_segid
         # set mapping of atoms
         for atom in self.GetAtoms():
@@ -112,25 +127,28 @@ class Molecule(BaseRDKitMol):
             residues = [Residue(mol, use_segid=use_segid) for mol in residues]
             residues.sort(key=attrgetter("resid"))
         else:
-            # A residue already attached elsewhere remains that old snapshot.
-            # Do not rebind references held by another molecule/caller.
-            supplied = residues
-            residues = [
-                Residue(Chem.Mol(r), use_segid=use_segid)
-                if hasattr(r, "_context")
-                else r
-                for r in supplied
-            ]
-            for original, cloned in zip(supplied, residues, strict=True):
-                if cloned is not original:
-                    cloned.resid = copy.copy(original.resid)
-        if self.HasProp(_INCOMPLETE_CONTEXT) or any(
+            residues = _independent_residues(residues, use_segid=use_segid)
+        incomplete = self.HasProp(_INCOMPLETE_CONTEXT) or any(
             r.HasProp(_INCOMPLETE_CONTEXT) for r in residues
+        )
+        self.residues = ResidueGroup(residues)
+        # Optional error callbacks can replace the group. Bind the published
+        # residues, including duplicates retained by warn/skip, not stale inputs.
+        residues = list(self.residues._residues)
+        published = {r.resid: r for r in residues}
+        if len(published) != len(self.residues) or any(
+            self.residues.get(key) is not residue for key, residue in published.items()
         ):
+            raise ValueError("Callback returned an inconsistent residue group")
+        if any(hasattr(r, "_context") for r in residues):
+            if len({r.resid for r in residues}) != len(residues):
+                raise ValueError("Callback returned duplicate attached residue owners")
+            residues = _independent_residues(residues, use_segid=use_segid)
+            self.residues = ResidueGroup(residues)
+        if incomplete or any(r.HasProp(_INCOMPLETE_CONTEXT) for r in residues):
             self.SetBoolProp(_INCOMPLETE_CONTEXT, True)
             for residue in residues:
                 residue.SetBoolProp(_INCOMPLETE_CONTEXT, True)
-        self.residues = ResidueGroup(residues)
         self._context = _MolecularContext(self, residues, use_segid=use_segid)
         for owner, residue in enumerate(residues):
             residue._context = self._context

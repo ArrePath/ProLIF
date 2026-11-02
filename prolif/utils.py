@@ -18,7 +18,7 @@ import pandas as pd
 from MDAnalysis import AtomGroup, Universe
 from MDAnalysis.coordinates.timestep import Timestep
 from rdkit import Chem, rdBase
-from rdkit.Chem import FragmentOnBonds, GetMolFrags, SplitMolByPDBResidues
+from rdkit.Chem import GetMolFrags, SplitMolByPDBResidues
 from rdkit.DataStructs import ExplicitBitVect, UIntSparseIntVect
 from rdkit.Geometry import Point3D
 from scipy.spatial import cKDTree
@@ -169,13 +169,15 @@ def get_residues_near_ligand(
     return list(set(resids))
 
 
-def split_mol_by_residues(mol: Chem.Mol, *, use_segid: bool = False) -> list[Chem.Mol]:
+def split_mol_by_residues(mol: Chem.Mol, use_segid: bool = False) -> list[Chem.Mol]:
     """Splits a molecule in multiple fragments based on residues
 
     Parameters
     ----------
     mol : rdkit.Chem.rdchem.Mol
         The molecule to fragment
+    use_segid: bool, default = False
+        Use the segment number rather than the chain identifier as a chain
 
     Returns
     -------
@@ -195,34 +197,21 @@ def split_mol_by_residues(mol: Chem.Mol, *, use_segid: bool = False) -> list[Che
                 for a in frag.GetAtoms()
             }
             if len(set(resids.values())) > 1:
-                # split on peptide bonds
-                bonds = [
-                    b.GetIdx() for b in frag.GetBonds() if is_peptide_bond(b, resids)
-                ]
-                mols = FragmentOnBonds(frag, bonds, addDummies=False)
-                mols = GetMolFrags(mols, asMols=True, sanitizeFrags=False)
-                residues.extend(mols)
+                # FragmentOnBonds cannot be used here as it fills the lost bond
+                # with an extra implicit H, unlike SplitMolByPDBResidues
+                with Chem.RWMol(frag) as rwmol:
+                    for bond in frag.GetBonds():
+                        if is_peptide_bond(bond, resids):
+                            rwmol.RemoveBond(
+                                bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+                            )
+                res_frags = GetMolFrags(
+                    rwmol.GetMol(), asMols=True, sanitizeFrags=False
+                )
+                residues.extend(res_frags)
             else:
                 residues.append(frag)
-    # A missing intra-residue bond must not discard a disconnected piece when
-    # ResidueGroup indexes fragments by identity. Templates may repair that bond.
-    grouped: dict[ResidueId, Chem.Mol] = {}
-    for fragment in residues:
-        residue = fragment
-        key = ResidueId.from_atom(residue.GetAtomWithIdx(0), use_segid=use_segid)
-        if key in grouped:
-            residue = Chem.CombineMols(grouped[key], residue)
-            atoms = list(residue.GetAtoms())
-            if all(a.HasProp("mapindex") for a in atoms):
-                residue = Chem.RenumberAtoms(
-                    residue,
-                    sorted(
-                        range(len(atoms)),
-                        key=lambda i: atoms[i].GetUnsignedProp("mapindex"),
-                    ),
-                )
-        grouped[key] = residue
-    return list(grouped.values())
+    return residues
 
 
 def is_peptide_bond(bond: Chem.Bond, resids: dict[int, ResidueId]) -> bool:

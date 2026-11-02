@@ -11,9 +11,11 @@ import pytest
 from rdkit import Chem
 
 from prolif import Molecule
+from prolif._context import _matches
+from prolif.exceptions import FragmentedResidueError
 from prolif.interactions import Hydrophobic
 from prolif.io import MoleculeStandardizer
-from prolif.residue import Residue
+from prolif.residue import Residue, ResidueGroup, ResidueId
 from tests.context_helpers import load_pair, named
 
 
@@ -73,7 +75,10 @@ def test_invalid_custom_cache_is_rejected_at_implicit_use_only(bad: str) -> None
         matches(probe, "[#7]")
 
 
-def test_duplicate_custom_owners_are_rejected_at_implicit_use() -> None:
+@pytest.mark.parametrize("on_error", ["raise", "skip"])
+def test_duplicate_custom_owners_are_rejected(
+    on_error: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
     parent = Molecule.from_rdkit(Chem.MolFromSequence("AA"))
     residues = [Residue(Chem.Mol(r)) for r in parent]
     # Both fragments genuinely advertise the same namespace, rather than merely
@@ -82,10 +87,15 @@ def test_duplicate_custom_owners_are_rejected_at_implicit_use() -> None:
         for atom in mol.GetAtoms():
             atom.GetPDBResidueInfo().SetResidueNumber(1)
     residues[1].resid.number = 1
-    mol = Molecule(parent, residues=residues)
-    list(Hydrophobic().detect(mol[0], mol[0]))
-    with pytest.raises(ValueError, match="duplicate residue owners"):
-        matches(mol[0], "[#7]")
+    monkeypatch.setattr(FragmentedResidueError, "on_error", on_error)
+    if on_error == "raise":
+        with pytest.raises(FragmentedResidueError, match="ALA1.A"):
+            Molecule(parent, residues=residues)
+    else:
+        mol = Molecule(parent, residues=residues)
+        list(Hydrophobic().detect(mol[0], mol[0]))
+        with pytest.raises(ValueError, match="duplicate residue owners"):
+            matches(mol[0], "[#7]")
 
 
 def test_rebinding_an_attached_residue_does_not_change_its_snapshot() -> None:
@@ -221,6 +231,85 @@ def test_ambiguous_insertion_code_namespace_is_not_silently_merged() -> None:
         if info.GetResidueNumber() == 2:
             info.SetResidueNumber(1)
             info.SetInsertionCode("A")
+    mol = Molecule.from_rdkit(raw)
+    with pytest.raises(ValueError, match="namespace"):
+        matches(mol[0], "[#7]")
+
+
+@pytest.mark.parametrize(
+    "callback_result",
+    ["coherent", "missing_map", "missing_atom", "attached", "cut", "dictionary_only"],
+)
+def test_fragment_callback_preserves_whole_context(
+    callback_result: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = Chem.MolFromSequence("ADK")
+    original = Molecule.from_rdkit(raw)
+    old = original[1]
+    old_context = old._context
+    changed = Chem.RWMol(raw)
+    changed.RemoveBond(
+        named(old, "CG").GetUnsignedProp("mapindex"),
+        named(old, "OD2").GetUnsignedProp("mapindex"),
+    )
+    if callback_result == "cut":
+        changed.SetBoolProp("prolif.covalentSplit", True)
+
+    def combine(_message: str, group: ResidueGroup) -> None:
+        if callback_result == "attached":
+            ResidueGroup.__init__(group, list(original))
+            return
+        grouped: dict[ResidueId, Chem.Mol] = {}
+        for residue in group._residues:
+            key = residue.resid
+            grouped[key] = (
+                Chem.CombineMols(grouped[key], residue)
+                if key in grouped
+                else Chem.Mol(residue)
+            )
+        residues = [Residue(mol) for mol in grouped.values()]
+        target = next(r for r in residues if str(r.resid) == "ASP2.A")
+        if callback_result == "missing_map":
+            target.GetAtomWithIdx(0).ClearProp("mapindex")
+        elif callback_result == "missing_atom":
+            damaged = Chem.RWMol(target)
+            damaged.RemoveAtom(0)
+            residues[residues.index(target)] = Residue(damaged.GetMol())
+        elif callback_result == "cut":
+            for residue in residues:
+                if residue.HasProp("prolif.covalentSplit"):
+                    residue.ClearProp("prolif.covalentSplit")
+        if callback_result == "dictionary_only":
+            group.data = {r.resid: r for r in residues}
+        else:
+            ResidueGroup.__init__(group, residues)
+
+    monkeypatch.setattr(FragmentedResidueError, "on_error", combine)
+    if callback_result == "dictionary_only":
+        with pytest.raises(ValueError, match="inconsistent residue group"):
+            Molecule.from_rdkit(changed.GetMol())
+        return
+    molecule = Molecule.from_rdkit(changed.GetMol())
+    residue = molecule["ASP2.A"]
+    if callback_result == "coherent":
+        # This recursive query needs the previous residue's carbonyl carbon.
+        assert _matches(residue, Chem.MolFromSmarts("[$(N-C=O)]"))
+    elif callback_result == "cut":
+        with pytest.raises(ValueError, match="covalent.*split"):
+            _matches(Residue(Chem.Mol(residue)), Chem.MolFromSmarts("[#7]"))
+    else:
+        with pytest.raises(ValueError, match="Invalid implicit H-bond context"):
+            _matches(residue, Chem.MolFromSmarts("[#7]"))
+    assert old._context is old_context
+    assert matches(old, "[$(N-C=O)]")
+
+
+def test_ambiguous_segment_namespace_is_not_silently_merged() -> None:
+    raw = Chem.MolFromSequence("AA")
+    for atom in raw.GetAtoms():
+        info = atom.GetPDBResidueInfo()
+        info.SetSegmentNumber(info.GetResidueNumber())
+        info.SetResidueNumber(1)
     mol = Molecule.from_rdkit(raw)
     with pytest.raises(ValueError, match="namespace"):
         matches(mol[0], "[#7]")

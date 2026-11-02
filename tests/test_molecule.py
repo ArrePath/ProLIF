@@ -1,12 +1,18 @@
+import pickle
+import warnings
+from collections import defaultdict
 from contextlib import AbstractContextManager, nullcontext
-from typing import TYPE_CHECKING, ClassVar
+from functools import reduce
+from typing import TYPE_CHECKING, Any, ClassVar
 
 import pytest
 from MDAnalysis import SelectionError
 from numpy.testing import assert_array_equal
 from rdkit import Chem
+from rdkit.Chem.rdDistGeom import EmbedMolecule
 
 from prolif.datafiles import datapath
+from prolif.exceptions import ErrorBehavior, FragmentedResidueError
 from prolif.molecule import (
     Molecule,
     mol2_supplier,
@@ -81,6 +87,22 @@ class TestMolecule(pytest.BaseTestMixinRDKitMol):  # type: ignore[name-defined]
         assert water_mol["TIP34.3"]
         # would have overwritten TIP34.3 if using chain as there's only chain X
         assert water_mol["TIP34.4"]
+
+    @pytest.mark.parametrize("pk", [pickle, pytest.importorskip("dill")])
+    def test_pickle(self, pk: Any) -> None:
+        mol = Chem.MolFromSequence("AA")
+        mol = Chem.AddHs(mol, addResidueInfo=True)
+        EmbedMolecule(mol, randomSeed=42)
+        # make both residues only differ by SegmentID
+        for atom in mol.GetAtoms():
+            mi: Chem.AtomPDBResidueInfo = atom.GetPDBResidueInfo()
+            mi.SetSegmentNumber(mi.GetResidueNumber())
+            mi.SetResidueNumber(1)
+        pmol = Molecule.from_rdkit(mol, use_segid=True)
+        assert pmol.n_residues == 2
+        unpickled = pk.loads(pk.dumps(pmol))
+        assert hasattr(unpickled, "residues")
+        assert list(unpickled.residues) == list(pmol.residues)
 
 
 class SupplierBase:
@@ -207,6 +229,8 @@ def test_split_molecule(water_u: "Universe") -> None:
     assert (pmol.residues.number == [range(20, 31)]).all()
     assert len(Chem.GetMolFrags(pmol)) == 1
     assert len(Chem.GetMolFrags(wmol)) == 11
+    assert combined["TIP310.5"].resid == wmol["TIP310.5"].resid
+    assert combined["TIP310.5"].GetNumAtoms() == wmol["TIP310.5"].GetNumAtoms()
     assert combined["TIP310.5"] is not wmol["TIP310.5"]
 
 
@@ -221,3 +245,90 @@ def test_split_molecule_reassigns_mapindex(u: "Universe") -> None:
     assert lhs.n_residues == 1
     # if not reset, this would be 148
     assert lhs[0].GetAtomWithIdx(0).GetUnsignedProp("mapindex") == 0
+
+
+def test_successive_split_molecule_calls(water_u: "Universe") -> None:
+    prot = water_u.select_atoms("protein and resid 20-30")
+    water = water_u.select_atoms("resname TIP3 and segindex 5 and resid 10-20")
+    lig = water_u.select_atoms("resname QNB")
+    combined = Molecule.from_mda(prot + water + lig)
+
+    lmol, others = split_molecule(combined, lambda x: x.name == "QNB")
+    _, pmol = split_molecule(others, lambda x: x.name == "TIP3")
+
+    for entity in (lmol, pmol):
+        residue_level = {r.resid for r in entity}
+        atom_level = {ResidueId.from_atom(a, use_segid=True) for a in entity.GetAtoms()}
+        assert residue_level == atom_level
+        for atom in entity.GetAtoms():
+            assert atom.GetUnsignedProp("mapindex") == atom.GetIdx()
+
+
+@pytest.fixture
+def fragmented_rdmol() -> Chem.Mol:
+    pdb = """\
+ATOM      1  N   ALA A   1       0.000   0.000   0.000  1.00  0.00           N
+ATOM      2  CA  ALA A   1      10.000  10.000  10.000  1.00  0.00           C
+ATOM      3  N   GLY A   2      20.000  20.000  20.000  1.00  0.00           N
+END
+"""
+    return Chem.MolFromPDBBlock(pdb, removeHs=False, sanitize=False)
+
+
+@pytest.mark.parametrize(
+    ("on_error", "context"),
+    [
+        (
+            "raise",
+            pytest.raises(
+                FragmentedResidueError,
+                match=r"The following residues are fragmented.+: ALA1.A.",
+            ),
+        ),
+        (
+            "warn",
+            pytest.warns(
+                UserWarning, match=r"The following residues are fragmented.+: ALA1.A."
+            ),
+        ),
+        ("skip", nullcontext()),
+        (
+            lambda *_: warnings.warn("foobar", stacklevel=2),
+            pytest.warns(UserWarning, match="foobar"),
+        ),
+    ],
+)
+def test_disconnected_residue_handling(
+    on_error: ErrorBehavior,
+    context: AbstractContextManager,
+    fragmented_rdmol: Chem.Mol,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A residue that is fragmented due to invalid bond inferring should raise an
+    error rather than silently drop all but the last fragment"""
+
+    monkeypatch.setattr(FragmentedResidueError, "on_error", on_error)
+    with context:
+        Molecule(fragmented_rdmol)
+
+
+def test_disconnected_residue_custom_callback(
+    monkeypatch: pytest.MonkeyPatch, fragmented_rdmol: Chem.Mol
+) -> None:
+    def combine_mols(msg: str, *args: Any) -> None:
+        """A simple callback that combines fragmented residues in the same mol object"""
+        residue_group = args[0]
+        grouped = defaultdict(list)
+        for r in residue_group._residues:
+            grouped[r.resid].append(r)
+        combined = [
+            Residue(reduce(Chem.CombineMols, group, Chem.Mol()))
+            for group in grouped.values()
+        ]
+        residue_group.__init__(combined)
+
+    monkeypatch.setattr(FragmentedResidueError, "on_error", combine_mols)
+    mol = Molecule(fragmented_rdmol)
+    assert mol.n_residues == 2
+    assert len(mol.residues._residues) == 2
+    assert mol["ALA1.A"].GetNumAtoms() == 2

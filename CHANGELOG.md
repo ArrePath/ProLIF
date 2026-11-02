@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [2.2.3+arrepath.1] - 2026-11-02
 
 ### Added
 - Molecular context snapshots for implicit H-bond classification and geometry, retaining
@@ -18,6 +18,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve atom order and chain/segment namespace when splitting molecules.
 
 ### Changed
+- Integrate upstream 2.2.3 while retaining complete-parent chemical perception.
+- Reject fragmented duplicate owners during ordinary molecule construction; only
+  transactional template preparation retains pieces for missing-bond repair.
+- Reject source chain/segment/insertion-code collisions in implicit snapshots.
 - Require RDKit >=2024.3.1 for nontruncating recursive substructure searches.
 - Splitting now copies residues without mutating the input's atom mappings. Residue
   object identity is no longer shared between the input and returned molecules.
@@ -34,6 +38,45 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Deprecated
 
 ### Removed
+
+## [2.2.3] - 2026-10-09
+
+### Added
+
+- Added `FragmentedResidueError` for when multiple residues share the
+  same `ResidueId`.
+- Added `OptionalException` base class to define the behaviour on specific runtime
+  errors that may be ignored or handled by the user.
+
+### Fixed
+
+- `MoleculeStandardizer` now properly assigns each atom's hybridization.
+- The HBond acceptor SMARTS patterns now exclude proline backbone nitrogens, and
+  the implicit and explicit patterns are harmonized: the peptide nitrogen
+  exclusion prefers degree over valence.
+- Implicit HBond interactions no longer raise a `KeyError` for atoms with a
+  hybridization other than SP, SP2 or SP3, and instead treats the interaction
+  as invalid.
+- Using `split_molecule` could swap atoms between the two output molecules if the
+  components residues were ordered differently from the original molecule, typically
+  when water molecules in multiple chains are present.
+- The residue fragmentation that occurs when creating a `Molecule` no longer assigns a
+  wrong hydrogen count to atoms at the cut peptide bonds when both residues are the same
+  e.g. when splitting a di-Alanine.
+- Fixed a bug in the `"queue"` parallel strategy where the pickling/unpickling of the
+  RDKit molecules would silently redo the residue splitting without preserving the
+  original `use_segid` flag.
+- Fixed an issue in the `"queue"` parallel strategy where exceptions raised during
+  trajectory iteration would silently crash the background task and hang the process
+  indefinitely.
+- 5 and 6-membered rings fused to a smaller ring are no longer excluded.
+- Switched to SSSR ring-perception for more reliable ring size detection.
+
+### Changed
+
+- The `use_segid` option is now propagated through `Residue`,
+  `split_mol_by_residues`, the template engines and `split_molecule`, so
+  residues created from these code paths keep the correct chain identifier.
 
 ## [2.2.2] - 2026-09-19
 

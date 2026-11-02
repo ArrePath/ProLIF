@@ -337,6 +337,9 @@ class TestInteractions:
             ("CationPi.cation", "NC(=[NH2+])N", False, 3),
             ("CationPi.cation", "C-N=[N+]=[N-]", False, 0),
             ("CationPi.cation", "N#[N+]-[N-2]", False, 0),
+            ("CationPi.pi_ring", "Cn1c(=O)c2c(ncn2C)n(C)c1=O", False, 2),
+            ("CationPi.pi_ring", "C1=Cc2ccccc21", False, 1),
+            ("CationPi.pi_ring", "c1ccc2c(c1)-c1ccccc1-2", False, 2),
             ("CationPi.pi_ring", "c1ccccc1", False, 1),
             ("CationPi.pi_ring", "c1cocc1", False, 1),
             ("EdgeToFace.pi_ring", "c1ccccc1", False, 1),
@@ -394,7 +397,7 @@ class TestInteractions:
                 f"expected {expected}"
             )
 
-    @pytest.mark.parametrize("sequence", ["ALG", "LLA", "ALL"])
+    @pytest.mark.parametrize("sequence", ["ALG", "LLA", "ALL", "APA"])
     @pytest.mark.parametrize("implicit_h", [True, False])
     def test_backbone_nitrogen_matched_as_acceptor(
         self, sequence: str, implicit_h: bool

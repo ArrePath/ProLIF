@@ -7,8 +7,6 @@ implementations for fixing bond orders on residues.
 .. versionadded:: 2.2.0
 """
 
-from __future__ import annotations
-
 import logging
 from typing import Protocol, runtime_checkable
 
@@ -70,7 +68,7 @@ class RDKitMolTemplateEngine:
 
     def apply(self, residue: Residue) -> Residue:
         new_res = assign_bond_orders_from_template(template_mol=self._mol, mol=residue)
-        return Residue(new_res)
+        return Residue(new_res, use_segid=residue._use_segid)
 
 
 class CIFTemplateEngine:
@@ -104,7 +102,9 @@ class CIFTemplateEngine:
     def apply(self, residue: Residue) -> Residue:
         new_res = strip_bonds(residue)
         new_res = assign_intra_props(new_res, self._name, self._block)
-        return Residue(new_res)
+        # The standardizer projects this template onto the intact parent and
+        # perceives hybridization chemically after global sanitization.
+        return Residue(new_res, use_segid=residue._use_segid)
 
 
 def assign_bond_orders_from_template(

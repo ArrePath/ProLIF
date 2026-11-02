@@ -29,7 +29,8 @@ from prolif.io.template_engine import (
     TemplateEngine,
 )
 from prolif.molecule import Molecule
-from prolif.residue import Residue
+from prolif.residue import Residue, ResidueId
+from prolif.utils import split_mol_by_residues
 
 #: Type alias for a template given as a ``(residue_name, rdkit_mol)`` pair.
 MolTemplate = tuple[str, Chem.Mol]
@@ -180,13 +181,13 @@ class MoleculeStandardizer:
             )
 
         elif isinstance(input_topology, Chem.Mol):
-            protein_mol = Molecule.from_rdkit(input_topology)
+            protein_mol = self._candidate_from_rdkit(input_topology)
 
         elif isinstance(input_topology, str | Path) and str(input_topology).endswith(
             ".pdb"
         ):
             input_protein_top = Chem.MolFromPDBFile(str(input_topology), removeHs=False)
-            protein_mol = Molecule.from_rdkit(input_protein_top)
+            protein_mol = self._candidate_from_rdkit(input_protein_top)
 
         else:
             raise TypeError(
@@ -241,6 +242,7 @@ class MoleculeStandardizer:
                 raise ValueError(
                     f"Could not apply template for residue {residue.resid}: {e}"
                 ) from e
+
             new_residues.append(fixed)
 
         corrected = Chem.RWMol(protein_mol)
@@ -259,6 +261,31 @@ class MoleculeStandardizer:
         Chem.Mol.__init__(destination, candidate)
         destination.__dict__ = state
         return destination
+
+    @staticmethod
+    def _candidate_from_rdkit(source: Chem.Mol) -> Molecule:
+        """Retain disconnected pieces only while templates can repair their bonds."""
+        if not source.GetAtomWithIdx(0).GetMonomerInfo():
+            return Molecule.from_rdkit(source)
+        parent = Chem.Mol(source)
+        for atom in parent.GetAtoms():
+            atom.SetUnsignedProp("mapindex", atom.GetIdx())
+        grouped: dict[ResidueId, Chem.Mol] = {}
+        for fragment in split_mol_by_residues(parent):
+            residue = fragment
+            key = ResidueId.from_atom(residue.GetAtomWithIdx(0))
+            if key in grouped:
+                residue = Chem.CombineMols(grouped[key], residue)
+                atoms = list(residue.GetAtoms())
+                residue = Chem.RenumberAtoms(
+                    residue,
+                    sorted(
+                        range(len(atoms)),
+                        key=lambda i: atoms[i].GetUnsignedProp("mapindex"),
+                    ),
+                )
+            grouped[key] = residue
+        return Molecule(parent, residues=[Residue(mol) for mol in grouped.values()])
 
     @staticmethod
     def _template_atom_mapping(

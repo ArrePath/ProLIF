@@ -5,6 +5,7 @@ import pytest
 from rdkit import Chem
 
 from prolif import Molecule
+from prolif.exceptions import FragmentedResidueError
 from prolif.io import MoleculeStandardizer
 from prolif.io.template_engine import RDKitMolTemplateEngine
 from prolif.residue import Residue
@@ -215,6 +216,22 @@ def test_template_cannot_rewire_source_hydrogen_or_assigned_stereo(change: str) 
     with pytest.raises(ValueError, match=r"hydrogen|stereochemistry"):
         standardizer(raw)
     assert signature(raw) == before
+
+
+@pytest.mark.parametrize("on_error", ["raise", "skip"])
+def test_standardizer_rejects_nonrepairable_duplicate_owners(
+    on_error: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = Chem.CombineMols(Chem.MolFromSequence("G"), Chem.MolFromSequence("G"))
+    for atom in raw.GetAtoms():
+        atom.SetUnsignedProp("mapindex", atom.GetIdx())
+    source = Molecule(raw, residues=[Residue(raw)])
+    before = signature(source), [signature(r) for r in source]
+    monkeypatch.setattr(FragmentedResidueError, "on_error", on_error)
+    error = FragmentedResidueError if on_error == "raise" else ValueError
+    with pytest.raises(error, match="fragmented|duplicate residue owners"):
+        MoleculeStandardizer()(source)
+    assert (signature(source), [signature(r) for r in source]) == before
 
 
 def test_template_can_restore_missing_intra_residue_bond() -> None:
