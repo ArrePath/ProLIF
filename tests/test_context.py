@@ -11,10 +11,11 @@ import pytest
 from rdkit import Chem
 
 from prolif import Molecule
+from prolif._context import _matches
 from prolif.exceptions import FragmentedResidueError
 from prolif.interactions import Hydrophobic
 from prolif.io import MoleculeStandardizer
-from prolif.residue import Residue
+from prolif.residue import Residue, ResidueGroup, ResidueId
 from tests.context_helpers import load_pair, named
 
 
@@ -233,6 +234,74 @@ def test_ambiguous_insertion_code_namespace_is_not_silently_merged() -> None:
     mol = Molecule.from_rdkit(raw)
     with pytest.raises(ValueError, match="namespace"):
         matches(mol[0], "[#7]")
+
+
+@pytest.mark.parametrize(
+    "callback_result",
+    ["coherent", "missing_map", "missing_atom", "attached", "cut", "dictionary_only"],
+)
+def test_fragment_callback_preserves_whole_context(
+    callback_result: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    raw = Chem.MolFromSequence("ADK")
+    original = Molecule.from_rdkit(raw)
+    old = original[1]
+    old_context = old._context
+    changed = Chem.RWMol(raw)
+    changed.RemoveBond(
+        named(old, "CG").GetUnsignedProp("mapindex"),
+        named(old, "OD2").GetUnsignedProp("mapindex"),
+    )
+    if callback_result == "cut":
+        changed.SetBoolProp("prolif.covalentSplit", True)
+
+    def combine(_message: str, group: ResidueGroup) -> None:
+        if callback_result == "attached":
+            ResidueGroup.__init__(group, list(original))
+            return
+        grouped: dict[ResidueId, Chem.Mol] = {}
+        for residue in group._residues:
+            key = residue.resid
+            grouped[key] = (
+                Chem.CombineMols(grouped[key], residue)
+                if key in grouped
+                else Chem.Mol(residue)
+            )
+        residues = [Residue(mol) for mol in grouped.values()]
+        target = next(r for r in residues if str(r.resid) == "ASP2.A")
+        if callback_result == "missing_map":
+            target.GetAtomWithIdx(0).ClearProp("mapindex")
+        elif callback_result == "missing_atom":
+            damaged = Chem.RWMol(target)
+            damaged.RemoveAtom(0)
+            residues[residues.index(target)] = Residue(damaged.GetMol())
+        elif callback_result == "cut":
+            for residue in residues:
+                if residue.HasProp("prolif.covalentSplit"):
+                    residue.ClearProp("prolif.covalentSplit")
+        if callback_result == "dictionary_only":
+            group.data = {r.resid: r for r in residues}
+        else:
+            ResidueGroup.__init__(group, residues)
+
+    monkeypatch.setattr(FragmentedResidueError, "on_error", combine)
+    if callback_result == "dictionary_only":
+        with pytest.raises(ValueError, match="inconsistent residue group"):
+            Molecule.from_rdkit(changed.GetMol())
+        return
+    molecule = Molecule.from_rdkit(changed.GetMol())
+    residue = molecule["ASP2.A"]
+    if callback_result == "coherent":
+        # This recursive query needs the previous residue's carbonyl carbon.
+        assert _matches(residue, Chem.MolFromSmarts("[$(N-C=O)]"))
+    elif callback_result == "cut":
+        with pytest.raises(ValueError, match="covalent.*split"):
+            _matches(Residue(Chem.Mol(residue)), Chem.MolFromSmarts("[#7]"))
+    else:
+        with pytest.raises(ValueError, match="Invalid implicit H-bond context"):
+            _matches(residue, Chem.MolFromSmarts("[#7]"))
+    assert old._context is old_context
+    assert matches(old, "[$(N-C=O)]")
 
 
 def test_ambiguous_segment_namespace_is_not_silently_merged() -> None:

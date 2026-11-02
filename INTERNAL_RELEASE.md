@@ -9,7 +9,8 @@ as part of this procedure.
 
 Check out the exact reviewed commit recorded in the fork/Ariadne PRs in an isolated
 worktree. Verify a clean source tree and `version = "2.2.3+arrepath.1"` before building.
-The PR records the qualified artifact digests and the build's `SOURCE_DATE_EPOCH`.
+Publish only after the PR records the qualified artifact digests and the build's
+`SOURCE_DATE_EPOCH`.
 
 ```bash
 set -euo pipefail
@@ -22,9 +23,9 @@ sha256sum "dist/prolif-${version}.tar.gz" "dist/prolif-${version}-py3-none-any.w
 ```
 
 Use a fresh output directory; upload only these two qualified files, not a wildcard
-containing unrelated releases. The agent qualified the built wheel separately from
-the editable source and exercised the released consumer. Do not treat successful
-building alone as scientific qualification of a different source commit.
+containing unrelated releases. Require separate built-wheel and released-consumer
+qualification before publication. Do not treat successful building alone as
+scientific qualification of a different source commit.
 
 ## Publish with your authorized AWS identity
 
@@ -34,18 +35,25 @@ the workstation. Set `PUBLISH_PROFILE` yourself. Never use shell tracing around
 token retrieval or upload, and do not persist the token in a configuration file.
 
 ```bash
+set -euo pipefail
 set +x
 : "${PUBLISH_PROFILE:?Set your authorized publisher profile}"
 aws --profile "$PUBLISH_PROFILE" sts get-caller-identity
-aws --profile "$PUBLISH_PROFILE" --region us-east-1 codeartifact list-package-versions \
+occupied="$(aws --profile "$PUBLISH_PROFILE" --region us-east-1 codeartifact list-package-versions \
   --domain arrepath --domain-owner 104165404940 --repository arrepath \
-  --format pypi --package prolif
+  --format pypi --package prolif \
+  --query "versions[?version=='${version}'].version" --output text)"
+if [ -n "$occupied" ]; then
+  printf "Refusing to publish occupied version: %s\n" "$version" >&2
+  exit 1
+fi
 ```
 
 Stop if `2.2.3+arrepath.1` already exists. Do not delete/re-upload it or use
 `--skip-existing` as proof of a successful release. Resolve an occupied version
 with the owner before building/publishing a new version.
 
+Run with a single publisher; the preflight is not an atomic version reservation.
 After confirming the version is unoccupied:
 
 ```bash
