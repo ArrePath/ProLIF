@@ -231,12 +231,13 @@ def test_split_molecule(water_u: "Universe") -> None:
     assert len(Chem.GetMolFrags(wmol)) == 11
     assert combined["TIP310.5"].resid == wmol["TIP310.5"].resid
     assert combined["TIP310.5"].GetNumAtoms() == wmol["TIP310.5"].GetNumAtoms()
+    assert combined["TIP310.5"] is not wmol["TIP310.5"]
 
 
 def test_split_molecule_reassigns_mapindex(u: "Universe") -> None:
-    """split_molecule passes the original residues to the split mols, but needs to
-    reset the mapindex first, otherwise the mapindex appearing in residues doesn't match
-    with the atom in the parent molecule or can result in out of bound indices,
+    """split_molecule copies residues to the split mols and needs to
+    reset the copied mapindex, otherwise residue indices don't match the parent
+    molecule or can result in out of bound indices,
     typically when the LHS is further in the input mol than the RHS"""
     peptide = u.select_atoms("protein and resid 40-50")
     system_mol = Molecule.from_mda(peptide)

@@ -7,21 +7,15 @@ implementations for fixing bond orders on residues.
 .. versionadded:: 2.2.0
 """
 
-import bisect
 import logging
-from collections.abc import Sequence
-from itertools import combinations
-from typing import Any, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 import gemmi
 from rdkit import Chem
-from rdkit.Chem.rdMolTransforms import GetAngleDeg
 
 from prolif.io.constants import (
     ATOMNAME_ALIASES,
     FORMAL_CHARGE_ALIASES,
-    HYBRIDIZATION_ANGLES,
-    HYBRIDIZATION_MAP,
     MAX_AMIDE_LENGTH,
     RESNAME_ALIASES,
 )
@@ -47,9 +41,6 @@ class TemplateEngine(Protocol):
     def apply(self, residue: Residue) -> Residue:
         """Fix the bond orders of the residue using this template."""
         ...
-
-    def set_runtime_context(self, **kwargs: Any) -> None:
-        """Set any runtime context for the template engine."""
 
 
 class RDKitMolTemplateEngine:
@@ -78,9 +69,6 @@ class RDKitMolTemplateEngine:
     def apply(self, residue: Residue) -> Residue:
         new_res = assign_bond_orders_from_template(template_mol=self._mol, mol=residue)
         return Residue(new_res, use_segid=residue._use_segid)
-
-    def set_runtime_context(self, **kwargs: Any) -> None:
-        pass
 
 
 class CIFTemplateEngine:
@@ -114,17 +102,9 @@ class CIFTemplateEngine:
     def apply(self, residue: Residue) -> Residue:
         new_res = strip_bonds(residue)
         new_res = assign_intra_props(new_res, self._name, self._block)
-        # copy hybridization from parent atom based on geometry
-        parent_mol = self.parent_mol
-        parent_conf = parent_mol.GetConformer()
-        for atom in new_res.GetAtoms():
-            parent_idx = atom.GetUnsignedProp("mapindex")
-            parent_atom = parent_mol.GetAtomWithIdx(parent_idx)
-            atom.SetHybridization(get_atom_hybridization(parent_atom, parent_conf))
+        # The standardizer projects this template onto the intact parent and
+        # perceives hybridization chemically after global sanitization.
         return Residue(new_res, use_segid=residue._use_segid)
-
-    def set_runtime_context(self, **kwargs: Any) -> None:
-        self.parent_mol = kwargs["parent_mol"]
 
 
 def assign_bond_orders_from_template(
@@ -365,42 +345,3 @@ def _assign_intra_props_lone_H(em: Chem.RWMol) -> Chem.RWMol:
             em.AddBond(i, j, order=Chem.BondType.SINGLE)
 
     return em
-
-
-def get_atom_hybridization(
-    atom: Chem.Atom, conf: Chem.Conformer
-) -> Chem.HybridizationType:
-    """Get the hybridization of a single atom based on its bond angles."""
-    if atom.GetDegree() == 1:
-        if atom.GetAtomicNum() == 1:
-            return Chem.HybridizationType.S
-        # diatomic system would lead to infinite recursion
-        if conf.GetNumAtoms() == 2:
-            return Chem.HybridizationType.UNSPECIFIED
-        return get_atom_hybridization(atom.GetNeighbors()[0], conf)
-    bond_angles = [
-        GetAngleDeg(conf, n1.GetIdx(), atom.GetIdx(), n2.GetIdx())
-        for n1, n2 in combinations(atom.GetNeighbors(), 2)
-    ]
-    if not bond_angles:
-        return Chem.HybridizationType.UNSPECIFIED
-    return _map_angles_to_hybridization(bond_angles)
-
-
-def _map_angles_to_hybridization(angles: Sequence[float]) -> Chem.HybridizationType:
-    """Maps a list of bond angles around a central atom to its hybridization."""
-    angles_key = frozenset([_quantize_angle(a) for a in angles])
-    # exact mapping
-    if (hyb := HYBRIDIZATION_MAP.get(angles_key)) is not None:
-        return hyb
-    # geometry might be odd, fallback to average angle
-    avg_angle = sum(angles) / len(angles)
-    angles_key = frozenset([_quantize_angle(avg_angle)])
-    return HYBRIDIZATION_MAP.get(angles_key, Chem.HybridizationType.UNSPECIFIED)
-
-
-def _quantize_angle(angle: float) -> float:
-    """Bin a bond angle to its nearest ideal reference angle."""
-    # Midpoints between archetypes
-    idx = bisect.bisect_right([99.75, 114.75, 150.0], angle)
-    return HYBRIDIZATION_ANGLES[idx]
