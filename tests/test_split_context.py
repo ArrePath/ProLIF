@@ -79,6 +79,66 @@ def test_noncovalent_split_preserves_source_and_child_metadata(
         )
 
 
+@pytest.mark.parametrize("use_segid", [False, True])
+@pytest.mark.parametrize("reverse", [False, True])
+def test_split_multichain_water_preserves_named_atom_correspondence(
+    use_segid: bool, reverse: bool
+) -> None:
+    raw = Chem.Mol()
+    for index, (chain, number, segment) in enumerate(
+        [("Z", 2, 9), ("A", 1, 1), ("Z", 1, 9), ("A", 2, 1)]
+    ):
+        water = Chem.MolFromSmiles("O")
+        water.GetAtomWithIdx(0).SetMonomerInfo(
+            Chem.AtomPDBResidueInfo(
+                " O  ",
+                residueName="HOH",
+                residueNumber=number,
+                chainId=chain,
+                segmentNumber=segment,
+            )
+        )
+        conf = Chem.Conformer(1)
+        conf.SetAtomPosition(0, (index * 10, 1, 2))
+        water.AddConformer(conf)
+        raw = Chem.CombineMols(raw, water)
+    if reverse:
+        raw = Chem.RenumberAtoms(raw, list(reversed(range(raw.GetNumAtoms()))))
+    original = Molecule.from_rdkit(raw, use_segid=use_segid)
+    before, xyz = mapping(original), original.xyz.copy()
+    left, right = split_molecule(original, lambda r: r.number == 1)
+    for child, expected_number in ((left, 1), (right, 2)):
+        expected = [
+            tuple(xyz[a.GetIdx()])
+            for a in original.GetAtoms()
+            if a.GetPDBResidueInfo().GetResidueNumber() == expected_number
+        ]
+        assert list(map(tuple, child.xyz)) == expected
+        for residue in child:
+            for atom in residue.GetAtoms():
+                parent = child.GetAtomWithIdx(atom.GetUnsignedProp("mapindex"))
+                assert atom.GetAtomicNum() == parent.GetAtomicNum()
+                info, parent_info = atom.GetPDBResidueInfo(), parent.GetPDBResidueInfo()
+                assert (
+                    info.GetName(),
+                    info.GetResidueName(),
+                    info.GetResidueNumber(),
+                    info.GetChainId(),
+                    info.GetSegmentNumber(),
+                ) == (
+                    parent_info.GetName(),
+                    parent_info.GetResidueName(),
+                    parent_info.GetResidueNumber(),
+                    parent_info.GetChainId(),
+                    parent_info.GetSegmentNumber(),
+                )
+                np.testing.assert_array_equal(
+                    residue.xyz[atom.GetIdx()], child.xyz[parent.GetIdx()]
+                )
+    assert mapping(original) == before
+    np.testing.assert_array_equal(original.xyz, xyz)
+
+
 def peptide_and_water() -> Molecule:
     peptide = Chem.MolFromSequence("AGK")
     peptide.AddConformer(Chem.Conformer(peptide.GetNumAtoms()))
