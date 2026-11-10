@@ -24,9 +24,7 @@ class TestComplex3D:
     def fp(self, request: pytest.FixtureRequest) -> plf.Fingerprint:
         return cast(plf.Fingerprint, request.getfixturevalue(request.param))
 
-    def execute_fp(
-        self, fp: plf.Fingerprint
-    ) -> tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]:
+    def execute_fp(self, fp: plf.Fingerprint) -> tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]:
         u = mda.Universe(plf.datafiles.TOP, plf.datafiles.TRAJ)
         lig = u.select_atoms("resname LIG")
         prot = u.select_atoms("protein and byres around 6.5 group ligand", ligand=lig)
@@ -35,9 +33,7 @@ class TestComplex3D:
         prot_mol = plf.Molecule.from_mda(prot)
         return fp, lig_mol, prot_mol
 
-    def execute_fp_ppi(
-        self, fp: plf.Fingerprint
-    ) -> tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]:
+    def execute_fp_ppi(self, fp: plf.Fingerprint) -> tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]:
         u = mda.Universe(plf.datafiles.TOP, plf.datafiles.TRAJ)
         chainA = u.select_atoms("protein and segid A")
         chainB = u.select_atoms("protein and segid B")
@@ -56,15 +52,11 @@ class TestComplex3D:
         )
 
     @pytest.fixture(scope="class")
-    def simple_fp_results(
-        self, simple_fp: plf.Fingerprint
-    ) -> tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]:
+    def simple_fp_results(self, simple_fp: plf.Fingerprint) -> tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]:
         return self.execute_fp(simple_fp)
 
     @pytest.fixture(scope="class")
-    def plot_3d(
-        self, fp_mols: tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]
-    ) -> Complex3D:
+    def plot_3d(self, fp_mols: tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]) -> Complex3D:
         fp, lig_mol, prot_mol = fp_mols
         return Complex3D.from_fingerprint(fp, lig_mol, prot_mol, frame=0)
 
@@ -86,20 +78,15 @@ class TestComplex3D:
         html = view._view._make_html()
         assert "Hydrophobic" in html
 
-    def test_from_fingerprint_raises_not_executed(
-        self, ligand_mol: plf.Molecule, protein_mol: plf.Molecule
-    ) -> None:
+    def test_from_fingerprint_raises_not_executed(self, ligand_mol: plf.Molecule, protein_mol: plf.Molecule) -> None:
         fp = plf.Fingerprint()
         with pytest.raises(
             RunRequiredError,
-            match="Please run the fingerprint analysis before attempting to display"
-            " results",
+            match="Please run the fingerprint analysis before attempting to display results",
         ):
             Complex3D.from_fingerprint(fp, ligand_mol, protein_mol, frame=0)
 
-    def test_fp_plot_3d(
-        self, fp_mols: tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]
-    ) -> None:
+    def test_fp_plot_3d(self, fp_mols: tuple[plf.Fingerprint, plf.Molecule, plf.Molecule]) -> None:
         fp, lig_mol, prot_mol = fp_mols
         view = fp.plot_3d(lig_mol, prot_mol, frame=0, display_all=fp.count)
         assert view._view
@@ -149,9 +136,7 @@ class TestComplex3D:
         plot_3d.display()
         plot_3d._populate_view(plot_3d)
 
-    def test_water(
-        self, water_mols: tuple[plf.Molecule, plf.Molecule, plf.Molecule]
-    ) -> None:
+    def test_water(self, water_mols: tuple[plf.Molecule, plf.Molecule, plf.Molecule]) -> None:
         ligand, protein, water = water_mols
         fp = plf.Fingerprint(
             ["HBDonor", "WaterBridge"],

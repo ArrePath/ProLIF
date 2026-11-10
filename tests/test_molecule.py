@@ -70,9 +70,7 @@ class TestMolecule(pytest.BaseTestMixinRDKitMol):  # type: ignore[name-defined]
     def test_n_residues(self, mol: Molecule) -> None:
         assert mol.n_residues == mol.residues.n_residues
 
-    def test_large_selection_automatically_uses_segid(
-        self, water_u: "Universe"
-    ) -> None:
+    def test_large_selection_automatically_uses_segid(self, water_u: "Universe") -> None:
         """
         If more segids than chains are present, Molecule should switch to segindex.
         """
@@ -123,9 +121,7 @@ class TestPDBQTSupplier(SupplierBase):
         path = datapath / "vina"
         pdbqts = sorted(path.glob("*.pdbqt"))
         template = Chem.MolFromSmiles(
-            "C[NH+]1CC(C(=O)NC2(C)OC3(O)C4CCCN4C(=O)"
-            "C(Cc4ccccc4)N3C2=O)C=C2c3cccc4[nH]cc"
-            "(c34)CC21"
+            "C[NH+]1CC(C(=O)NC2(C)OC3(O)C4CCCN4C(=O)C(Cc4ccccc4)N3C2=O)C=C2c3cccc4[nH]cc(c34)CC21"
         )
         return pdbqt_supplier(pdbqts, template)
 
@@ -151,8 +147,7 @@ class TestPDBQTSupplier(SupplierBase):
         hydrogens = [
             idx
             for atom in mol.GetAtoms()
-            if atom.HasProp("_MDAnalysis_index")
-            and (idx := atom.GetIntProp("_MDAnalysis_index")) in indices
+            if atom.HasProp("_MDAnalysis_index") and (idx := atom.GetIntProp("_MDAnalysis_index")) in indices
         ]
         assert hydrogens == indices
 

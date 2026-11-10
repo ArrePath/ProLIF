@@ -91,9 +91,7 @@ DISTANCE_FUNCTIONS_3ARGS: dict[str, "DistFunc3Args"] = {
     "P1": _distance_3args_l1_p1,
     "P2": _distance_3args_l1_p2,
 }
-DISTANCE_FUNCTIONS_4ARGS: dict[
-    tuple[Literal["L1", "L2"], Literal["P1", "P2"]], "DistFunc4Args"
-] = {
+DISTANCE_FUNCTIONS_4ARGS: dict[tuple[Literal["L1", "L2"], Literal["P1", "P2"]], "DistFunc4Args"] = {
     ("L1", "P1"): _distance_4args_l1_p1,
     ("L1", "P2"): _distance_4args_l1_p2,
     ("L2", "P1"): _distance_4args_l2_p1,

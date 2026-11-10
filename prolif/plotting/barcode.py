@@ -55,13 +55,9 @@ class Barcode:
     def __init__(self, df: pd.DataFrame) -> None:
         # mapping interaction type (HBond...etc.) to an arbitrary value which
         # corresponds to a color
-        self.color_mapper = {
-            interaction: value for value, interaction in enumerate(self.COLORS)
-        }
+        self.color_mapper = {interaction: value for value, interaction in enumerate(self.COLORS)}
         # reverse: map value to interaction type
-        self.inv_color_mapper = {
-            value: interaction for interaction, value in self.color_mapper.items()
-        }
+        self.inv_color_mapper = {value: interaction for interaction, value in self.color_mapper.items()}
         # matplotlib colormap
         self.cmap = ListedColormap(list(self.COLORS.values()))
 
@@ -80,9 +76,7 @@ class Barcode:
             """Replaces a bit value with it's corresponding color value"""
             interaction = s.name[-1]  # type: ignore[index]
             return s.apply(
-                lambda v: (
-                    self.color_mapper[interaction] if v else self.color_mapper[None]
-                ),
+                lambda v: self.color_mapper[interaction] if v else self.color_mapper[None],
             )
 
         self.df = df.astype(np.uint8).T.apply(_bit_to_color_value, axis=1)
@@ -92,8 +86,7 @@ class Barcode:
         """Creates a barcode object from a fingerprint."""
         if not hasattr(fp, "ifp"):
             raise RunRequiredError(
-                "Please run the fingerprint analysis before attempting to display"
-                " results.",
+                "Please run the fingerprint analysis before attempting to display results.",
             )
         return cls(fp.to_dataframe())
 
@@ -172,17 +165,10 @@ class Barcode:
         residues = self.df.index.get_level_values("protein")
         interactions = self.df.index.get_level_values("interaction")
         if residues_tick_location == "top":
-            indices = [
-                i
-                for i in range(n_items)
-                if (i - 1 >= 0 and residues[i - 1] != residues[i]) or i == 0
-            ]
+            indices = [i for i in range(n_items) if (i - 1 >= 0 and residues[i - 1] != residues[i]) or i == 0]
         else:
             indices = [
-                i
-                for i in range(n_items)
-                if (i + 1 < n_items and residues[i + 1] != residues[i])
-                or i + 1 == n_items
+                i for i in range(n_items) if (i + 1 < n_items and residues[i + 1] != residues[i]) or i + 1 == n_items
             ]
         ax.yaxis.set_ticks(indices, residues[indices])
 
@@ -191,13 +177,8 @@ class Barcode:
         with suppress(ValueError):
             # 0 not in values (e.g. plotting a single frame)
             values.pop(values.index(0))  # remove None color
-        legend_colors = {
-            self.inv_color_mapper[value]: im.cmap(value) for value in values
-        }
-        patches = [
-            Patch(color=color, label=interaction)
-            for interaction, color in legend_colors.items()
-        ]
+        legend_colors = {self.inv_color_mapper[value]: im.cmap(value) for value in values}
+        patches = [Patch(color=color, label=interaction) for interaction, color in legend_colors.items()]
         ax.legend(handles=patches, bbox_to_anchor=(1.01, 1), loc=2, borderaxespad=0)
 
         # interactive
@@ -236,11 +217,7 @@ class Barcode:
         annot.set_visible(False)
 
         def hover_callback(event: "LocationEvent") -> None:
-            if (
-                event.inaxes is ax
-                and event.xdata is not None
-                and event.ydata is not None
-            ):
+            if event.inaxes is ax and event.xdata is not None and event.ydata is not None:
                 x, y = round(event.xdata), round(event.ydata)
                 if self.df.to_numpy()[y, x]:
                     annot.xy = (x, y)

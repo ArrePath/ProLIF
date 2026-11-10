@@ -218,13 +218,8 @@ class LigNetwork:
         use_segid: bool = False,
     ) -> None:
         self.df = df
-        self._ligand_resids = {
-            str(ResidueId.from_atom(atom, use_segid=use_segid))
-            for atom in lig_mol.GetAtoms()
-        }
-        self._interacting_atoms: set[int] = {
-            atom for atoms in df.index.get_level_values("atoms") for atom in atoms
-        }
+        self._ligand_resids = {str(ResidueId.from_atom(atom, use_segid=use_segid)) for atom in lig_mol.GetAtoms()}
+        self._interacting_atoms: set[int] = {atom for atoms in df.index.get_level_values("atoms") for atom in atoms}
         mol = deepcopy(lig_mol)
         if kekulize:
             Chem.Kekulize(mol)
@@ -334,8 +329,7 @@ class LigNetwork:
         """
         if not hasattr(fp, "ifp"):
             raise RunRequiredError(
-                "Please run the fingerprint analysis before attempting to display"
-                " results.",
+                "Please run the fingerprint analysis before attempting to display results.",
             )
         kwargs.setdefault("use_segid", fp.use_segid or False)
         if kind == "frame":
@@ -392,9 +386,7 @@ class LigNetwork:
         return records
 
     @classmethod
-    def _make_agg_df_from_fp(
-        cls, fp: "Fingerprint", threshold: float = 0.3
-    ) -> pd.DataFrame:
+    def _make_agg_df_from_fp(cls, fp: "Fingerprint", threshold: float = 0.3) -> pd.DataFrame:
         data = []
         for ifp in fp.ifp.values():
             data.extend(cls._get_records(ifp, all_metadata=False))
@@ -425,9 +417,7 @@ class LigNetwork:
         )
 
     @classmethod
-    def _make_frame_df_from_fp(
-        cls, fp: "Fingerprint", frame: int = 0, display_all: bool = False
-    ) -> pd.DataFrame:
+    def _make_frame_df_from_fp(cls, fp: "Fingerprint", frame: int = 0, display_all: bool = False) -> pd.DataFrame:
         ifp = fp.ifp[frame]
         data = cls._get_records(ifp, all_metadata=display_all)
         df = pd.DataFrame(data)
@@ -590,9 +580,7 @@ class LigNetwork:
             distance,
             components,
         ) in cast(
-            Iterable[
-                tuple[tuple[str, str, str, tuple[int, ...]], tuple[float, float, str]]
-            ],
+            Iterable[tuple[tuple[str, str, str, tuple[int, ...]], tuple[float, float, str]]],
             self.df.iterrows(),
         ):
             if components.startswith("ligand"):

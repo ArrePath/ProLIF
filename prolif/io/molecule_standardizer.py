@@ -169,17 +169,12 @@ class MoleculeStandardizer:
         elif isinstance(input_topology, Chem.Mol):
             protein_mol = Molecule.from_rdkit(input_topology)
 
-        elif isinstance(input_topology, str | Path) and str(input_topology).endswith(
-            ".pdb"
-        ):
+        elif isinstance(input_topology, str | Path) and str(input_topology).endswith(".pdb"):
             input_protein_top = Chem.MolFromPDBFile(str(input_topology), removeHs=False)
             protein_mol = Molecule.from_rdkit(input_protein_top)
 
         else:
-            raise TypeError(
-                "input_topology must be a string (path to a PDB file) or "
-                "a prolif Molecule instance."
-            )
+            raise TypeError("input_topology must be a string (path to a PDB file) or a prolif Molecule instance.")
 
         # guess forcefield
         conv_resnames = set(protein_mol.residues.name)
@@ -197,9 +192,9 @@ class MoleculeStandardizer:
                 # set new residue name for each atom (at residue level)
                 atom.GetPDBResidueInfo().SetResidueName(standardized_resname)
                 # set the new residue name for each atom at the molecule level
-                protein_mol.GetAtomWithIdx(
-                    atom.GetUnsignedProp("mapindex")
-                ).GetPDBResidueInfo().SetResidueName(standardized_resname)
+                protein_mol.GetAtomWithIdx(atom.GetUnsignedProp("mapindex")).GetPDBResidueInfo().SetResidueName(
+                    standardized_resname
+                )
             # update the residue name in the Residue object
             residue.resid.name = standardized_resname
 
@@ -224,9 +219,7 @@ class MoleculeStandardizer:
             try:
                 fixed = engine.apply(residue)
             except Exception as e:
-                raise ValueError(
-                    f"Could not apply template for residue {residue.resid}: {e}"
-                ) from e
+                raise ValueError(f"Could not apply template for residue {residue.resid}: {e}") from e
             new_residues.append(fixed)
 
         # update the protein molecule with the new residues
@@ -262,9 +255,7 @@ class MoleculeStandardizer:
         return "unknown"
 
     @staticmethod
-    def convert_to_standard_resname(
-        resname: str, forcefield_name: str = "unknown"
-    ) -> str:
+    def convert_to_standard_resname(resname: str, forcefield_name: str = "unknown") -> str:
         """Convert a residue name to its standard form based on the forcefield.
 
         Parameters
@@ -322,8 +313,6 @@ class MoleculeStandardizer:
             [
                 atom
                 for atom in residue.GetAtoms()
-                if atom.GetAtomicNum() != 1
-                and atom.GetPDBResidueInfo().GetName().strip()
-                not in TERMINAL_OXYGEN_NAMES
+                if atom.GetAtomicNum() != 1 and atom.GetPDBResidueInfo().GetName().strip() not in TERMINAL_OXYGEN_NAMES
             ]
         )

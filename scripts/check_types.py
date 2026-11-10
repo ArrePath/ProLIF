@@ -48,9 +48,7 @@ def set_nested_value(d: dict, keys: Sequence, value: Any) -> None:
     d[keys[-1]] = value
 
 
-def build_file_tree(
-    files: list[Path], error_files: Counter[str]
-) -> tuple[dict[str, dict | int], int]:
+def build_file_tree(files: list[Path], error_files: Counter[str]) -> tuple[dict[str, dict | int], int]:
     """Build a tree structure of files for display and count typed files."""
     tree: dict[str, dict | int] = {}
     typed_count = 0
@@ -86,9 +84,7 @@ def print_tree(tree: dict[str, dict | int], prefix: str = "") -> None:
 def print_summary(typed: int, total: int) -> None:
     """Print summary statistics."""
     percentage = (typed / total * 100) if total > 0 else 0
-    print(
-        f"\nSummary: {typed}/{total} files have complete type hints ({percentage:.1f}%)"
-    )
+    print(f"\nSummary: {typed}/{total} files have complete type hints ({percentage:.1f}%)")
 
 
 def main(paths: Sequence[str]) -> None:

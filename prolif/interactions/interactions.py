@@ -287,9 +287,7 @@ class CationPi(Interaction):
         self.distance = distance
         self.angle = tuple(radians(i) for i in angle)
 
-    def detect(
-        self, cation: "Residue", pi: "Residue"
-    ) -> Iterator["InteractionMetadata"]:
+    def detect(self, cation: "Residue", pi: "Residue") -> Iterator["InteractionMetadata"]:
         cation_matches = cation.GetSubstructMatches(self.cation)
         for pi_ring in self.pi_ring:
             pi_matches = pi.GetSubstructMatches(pi_ring)
@@ -439,15 +437,11 @@ class PiStacking(Interaction):
 
     """
 
-    def __init__(
-        self, ftf_kwargs: dict | None = None, etf_kwargs: dict | None = None
-    ) -> None:
+    def __init__(self, ftf_kwargs: dict | None = None, etf_kwargs: dict | None = None) -> None:
         self.ftf = FaceToFace(**ftf_kwargs or {})
         self.etf = EdgeToFace(**etf_kwargs or {})
 
-    def detect(
-        self, ligand: "Residue", residue: "Residue"
-    ) -> Iterator["InteractionMetadata"]:
+    def detect(self, ligand: "Residue", residue: "Residue") -> Iterator["InteractionMetadata"]:
         yield from self.ftf.detect(ligand, residue)
         yield from self.etf.detect(ligand, residue)
 
@@ -473,9 +467,7 @@ class MetalDonor(Distance):
     def __init__(
         self,
         metal: str = "[Ca,Cd,Co,Cu,Fe,Mg,Mn,Ni,Zn]",
-        ligand: str = (
-            "[O,#7&!$([nX3])&!$([NX3]-*=[!#6])&!$([NX3]-[a])&!$([NX4]),-{1-};!+{1-}]"
-        ),
+        ligand: str = ("[O,#7&!$([nX3])&!$([NX3]-*=[!#6])&!$([NX3]-[a])&!$([NX4]),-{1-};!+{1-}]"),
         distance: float = 2.8,
     ) -> None:
         super().__init__(lig_pattern=metal, prot_pattern=ligand, distance=distance)
@@ -551,9 +543,7 @@ class VdWContact(Interaction):
                 f" {self.preset!r}."
             ) from None
 
-    def detect(
-        self, ligand: "Residue", residue: "Residue"
-    ) -> Iterator["InteractionMetadata"]:
+    def detect(self, ligand: "Residue", residue: "Residue") -> Iterator["InteractionMetadata"]:
         lxyz = ligand.GetConformer()
         rxyz = residue.GetConformer()
         for la, ra in product(ligand.GetAtoms(), residue.GetAtoms()):
@@ -662,9 +652,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
         self.vina_p_min = vina_potential_min
         self.ignore_geometry_checks = ignore_geometry_checks
 
-    def detect(
-        self, lig_res: "Residue", prot_res: "Residue"
-    ) -> Iterator["InteractionMetadata"]:
+    def detect(self, lig_res: "Residue", prot_res: "Residue") -> Iterator["InteractionMetadata"]:
         """Detect implicit hydrogen bond acceptor interactions.
 
         Parameters
@@ -739,9 +727,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
                     )
                 )
             ):
-                yield self.add_vina_hbond_potential(
-                    interaction_data, lig_res=lig_res, prot_res=prot_res
-                )
+                yield self.add_vina_hbond_potential(interaction_data, lig_res=lig_res, prot_res=prot_res)
 
     def check_geometry(
         self,
@@ -797,8 +783,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
                 remote_res_atom_idx=prot_atom_idx,
             )
             deviation_aaa = min(
-                abs(each_atom_angle - ideal_acceptor_atom_angle)
-                for each_atom_angle in acceptor_atom_angles
+                abs(each_atom_angle - ideal_acceptor_atom_angle) for each_atom_angle in acceptor_atom_angles
             )
             if deviation_aaa > self.tolerance_dev_aaa:
                 return False
@@ -833,10 +818,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
                 remote_res=lig_res,
                 remote_res_atom_idx=lig_atom_idx,
             )
-            deviation_daa = min(
-                abs(each_atom_angle - ideal_donor_atom_angle)
-                for each_atom_angle in donor_atom_angles
-            )
+            deviation_daa = min(abs(each_atom_angle - ideal_donor_atom_angle) for each_atom_angle in donor_atom_angles)
             if deviation_daa > self.tolerance_dev_daa:
                 return False
 
@@ -901,9 +883,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
             interaction_data["vina_hbond_potential"] = 0.0
         else:
             # Piecewise linear function for the hydrogen bond potential
-            interaction_data["vina_hbond_potential"] = (d_diff - self.vina_p_min) / (
-                self.vina_p_max - self.vina_p_min
-            )
+            interaction_data["vina_hbond_potential"] = (d_diff - self.vina_p_min) / (self.vina_p_max - self.vina_p_min)
         return interaction_data
 
     def check_water_residue(self, res: "Residue") -> bool:
@@ -950,9 +930,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
             The angle in degrees."""
 
         res_atom = res.GetAtomWithIdx(res_atom_idx)
-        nearby_heavy_atoms = [
-            atom for atom in res_atom.GetNeighbors() if atom.GetAtomicNum() != 1
-        ]
+        nearby_heavy_atoms = [atom for atom in res_atom.GetNeighbors() if atom.GetAtomicNum() != 1]
         if not nearby_heavy_atoms:
             raise ValueError(
                 f"No nearby heavy atoms found in residue {res.resid} "
@@ -1001,9 +979,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
             The angle in degrees.
         """
         res_atom = res.GetAtomWithIdx(res_atom_idx)
-        nearby_heavy_atoms = [
-            atom for atom in res_atom.GetNeighbors() if atom.GetAtomicNum() != 1
-        ]
+        nearby_heavy_atoms = [atom for atom in res_atom.GetNeighbors() if atom.GetAtomicNum() != 1]
         # If there are less than 2 nearby heavy atoms, we cannot calculate the plane.
         # We will need to extend the search of nearby atoms.
         if len(nearby_heavy_atoms) < 2:
@@ -1013,8 +989,7 @@ class ImplicitHBAcceptor(Distance, VdWContact):
                     [
                         nearby_nearby_atom
                         for nearby_nearby_atom in each_atom.GetNeighbors()
-                        if nearby_nearby_atom.GetAtomicNum() != 1
-                        and nearby_nearby_atom.GetIdx() != res_atom_idx
+                        if nearby_nearby_atom.GetAtomicNum() != 1 and nearby_nearby_atom.GetIdx() != res_atom_idx
                     ]
                 )
             nearby_heavy_atoms.extend(nearby_nearby_atoms)

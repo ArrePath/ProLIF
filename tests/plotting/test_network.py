@@ -37,15 +37,11 @@ class TestLigNetwork:
         return fp, lig_mol
 
     @pytest.fixture(scope="class")
-    def get_ligplot(
-        self, fp_mol: tuple[plf.Fingerprint, plf.Molecule]
-    ) -> partial[LigNetwork]:
+    def get_ligplot(self, fp_mol: tuple[plf.Fingerprint, plf.Molecule]) -> partial[LigNetwork]:
         fp, lig_mol = fp_mol
         return partial(LigNetwork.from_fingerprint, fp, lig_mol)
 
-    def test_integration_frame(
-        self, fp_mol: tuple[plf.Fingerprint, plf.Molecule]
-    ) -> None:
+    def test_integration_frame(self, fp_mol: tuple[plf.Fingerprint, plf.Molecule]) -> None:
         fp, lig_mol = fp_mol
         net = LigNetwork.from_fingerprint(
             fp,
@@ -68,9 +64,7 @@ class TestLigNetwork:
         assert "PHE331.B" in view._iframe
 
     def test_kwargs(self, get_ligplot: partial[LigNetwork]) -> None:
-        with patch(
-            "prolif.plotting.network.lignetwork.LigNetwork.__init__", return_value=None
-        ) as mock:
+        with patch("prolif.plotting.network.lignetwork.LigNetwork.__init__", return_value=None) as mock:
             get_ligplot(
                 kekulize=True,
                 use_coordinates=True,
@@ -97,54 +91,39 @@ class TestLigNetwork:
         assert view._iframe
         assert "PHE331.B" in view._iframe
 
-    def test_save_file(
-        self, get_ligplot: partial[LigNetwork], tmp_path: "Path"
-    ) -> None:
+    def test_save_file(self, get_ligplot: partial[LigNetwork], tmp_path: "Path") -> None:
         net = get_ligplot()
         output = tmp_path / "lignetwork.html"
         net.save(output)
         assert "PHE331.B" in output.read_text()
 
-    def test_from_fingerprint_raises_kind(
-        self, get_ligplot: partial[LigNetwork]
-    ) -> None:
+    def test_from_fingerprint_raises_kind(self, get_ligplot: partial[LigNetwork]) -> None:
         with pytest.raises(ValueError, match='must be "aggregate" or "frame"'):
             get_ligplot(kind="foo")
 
-    def test_from_fingerprint_raises_not_executed(
-        self, ligand_mol: plf.Molecule
-    ) -> None:
+    def test_from_fingerprint_raises_not_executed(self, ligand_mol: plf.Molecule) -> None:
         fp = plf.Fingerprint()
         with pytest.raises(
             RunRequiredError,
-            match="Please run the fingerprint analysis before attempting to display"
-            " results",
+            match="Please run the fingerprint analysis before attempting to display results",
         ):
             LigNetwork.from_fingerprint(fp, ligand_mol)
 
-    def test_show_interaction_data(
-        self, fp_mol: tuple[plf.Fingerprint, plf.Molecule]
-    ) -> None:
+    def test_show_interaction_data(self, fp_mol: tuple[plf.Fingerprint, plf.Molecule]) -> None:
         fp, lig_mol = fp_mol
         view = fp.plot_lignetwork(lig_mol, show_interaction_data=True)
         assert view._iframe
         assert "50%" in view._iframe
 
-    def test_fp_plot_lignetwork(
-        self, fp_mol: tuple[plf.Fingerprint, plf.Molecule]
-    ) -> None:
+    def test_fp_plot_lignetwork(self, fp_mol: tuple[plf.Fingerprint, plf.Molecule]) -> None:
         fp, lig_mol = fp_mol
         view = fp.plot_lignetwork(lig_mol, kind="frame", frame=0, display_all=fp.count)
         assert view._iframe
         assert "<iframe" in view._iframe
 
-    def test_water(
-        self, water_mols: tuple[plf.Molecule, plf.Molecule, plf.Molecule]
-    ) -> None:
+    def test_water(self, water_mols: tuple[plf.Molecule, plf.Molecule, plf.Molecule]) -> None:
         ligand, protein, water = water_mols
-        fp = plf.Fingerprint(
-            ["HBDonor", "WaterBridge"], parameters={"WaterBridge": {"water": water}}
-        )
+        fp = plf.Fingerprint(["HBDonor", "WaterBridge"], parameters={"WaterBridge": {"water": water}})
         fp.run_from_iterable([ligand], protein)
         view = fp.plot_lignetwork(ligand, kind="frame", frame=0)
         assert view._iframe

@@ -28,10 +28,7 @@ def test_ifp_indexing(ifp: IFP) -> None:
 def test_ifp_filtering(ifp: IFP) -> None:
     lig_id, prot_id = "LIG1.G", "VAL201.A"
     assert ifp[lig_id] == ifp
-    assert (
-        next(iter(ifp[prot_id].values()))
-        == ifp[ResidueId.from_string(lig_id), ResidueId.from_string(prot_id)]
-    )
+    assert next(iter(ifp[prot_id].values())) == ifp[ResidueId.from_string(lig_id), ResidueId.from_string(prot_id)]
 
 
 def test_wrong_key(ifp: IFP) -> None:

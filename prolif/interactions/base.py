@@ -67,16 +67,13 @@ class Interaction(ABC):
         register = _BASE_INTERACTIONS if is_abstract else _INTERACTIONS
         if name in register:
             warnings.warn(
-                f"The {name!r} interaction has been superseded by a "
-                f"new class with id {id(cls):#x}",
+                f"The {name!r} interaction has been superseded by a new class with id {id(cls):#x}",
                 stacklevel=2,
             )
         register[name] = cls
 
     @abstractmethod
-    def detect(
-        self, lig_res: "Residue", prot_res: "Residue"
-    ) -> Iterator["InteractionMetadata"]:
+    def detect(self, lig_res: "Residue", prot_res: "Residue") -> Iterator["InteractionMetadata"]:
         raise NotImplementedError()
 
     @overload
@@ -131,9 +128,7 @@ class Interaction(ABC):
         """
         return next(self(lig_res, prot_res, metadata=metadata), None)
 
-    def best(
-        self, lig_res: "Residue", prot_res: "Residue"
-    ) -> Optional["InteractionMetadata"]:
+    def best(self, lig_res: "Residue", prot_res: "Residue") -> Optional["InteractionMetadata"]:
         """Returns the best interaction found between the ligand and protein.
         The best interaction is defined as the one with the smallest distance as defined
         by each interaction type.
@@ -169,9 +164,7 @@ class Interaction(ABC):
             },
             "parent_indices": {
                 "ligand": tuple(get_mapindex(lig_res, index) for index in lig_indices),
-                "protein": tuple(
-                    get_mapindex(prot_res, index) for index in prot_indices
-                ),
+                "protein": tuple(get_mapindex(prot_res, index) for index in prot_indices),
             },
             **data,
         }
@@ -210,13 +203,9 @@ class Interaction(ABC):
         """
         cls_docstring = cls.__doc__ or "\n"
         parameters_doc = cls_docstring.split("\n", maxsplit=1)[1]
-        inverted: type["Self"] = type(
-            name, (cls,), {"__doc__": f"{docstring}\n{parameters_doc}"}
-        )
+        inverted: type["Self"] = type(name, (cls,), {"__doc__": f"{docstring}\n{parameters_doc}"})
 
-        def detect(
-            self: "Interaction", lig_res: "Residue", prot_res: "Residue"
-        ) -> Iterator["InteractionMetadata"]:
+        def detect(self: "Interaction", lig_res: "Residue", prot_res: "Residue") -> Iterator["InteractionMetadata"]:
             for metadata in super(inverted, self).detect(  # type: ignore[misc]
                 prot_res, lig_res
             ):
@@ -238,8 +227,7 @@ class BridgedInteraction:
         register = _BRIDGED_INTERACTIONS
         if name in register:
             warnings.warn(
-                f"The {name!r} interaction has been superseded by a "
-                f"new class with id {id(cls):#x}",
+                f"The {name!r} interaction has been superseded by a new class with id {id(cls):#x}",
                 stacklevel=2,
             )
         register[name] = cls
@@ -257,15 +245,11 @@ class BridgedInteraction:
         self.kwargs = kwargs
 
     @abstractmethod
-    def run(
-        self, traj: "Trajectory", lig: "MDAObject", prot: "MDAObject"
-    ) -> "IFPResults":
+    def run(self, traj: "Trajectory", lig: "MDAObject", prot: "MDAObject") -> "IFPResults":
         raise NotImplementedError()
 
     @abstractmethod
-    def run_from_iterable(
-        self, lig_iterable: Iterable["Molecule"], prot_mol: "Molecule"
-    ) -> "IFPResults":
+    def run_from_iterable(self, lig_iterable: Iterable["Molecule"], prot_mol: "Molecule") -> "IFPResults":
         raise NotImplementedError()
 
 
@@ -287,9 +271,7 @@ class Distance(Interaction, is_abstract=True):
         self.prot_pattern = MolFromSmarts(prot_pattern)
         self.distance = distance
 
-    def detect(
-        self, lig_res: "Residue", prot_res: "Residue"
-    ) -> Iterator["InteractionMetadata"]:
+    def detect(self, lig_res: "Residue", prot_res: "Residue") -> Iterator["InteractionMetadata"]:
         lig_matches = lig_res.GetSubstructMatches(self.lig_pattern)
         prot_matches = prot_res.GetSubstructMatches(self.prot_pattern)
         if lig_matches and prot_matches:
@@ -350,9 +332,7 @@ class SingleAngle(Interaction, is_abstract=True):
         self._measure_distance = DISTANCE_FUNCTIONS_3ARGS[distance_atom]
         self._metadata_mapping = metadata_mapping
 
-    def detect(
-        self, lig_res: "Residue", prot_res: "Residue"
-    ) -> Iterator["InteractionMetadata"]:
+    def detect(self, lig_res: "Residue", prot_res: "Residue") -> Iterator["InteractionMetadata"]:
         lig_matches = lig_res.GetSubstructMatches(self.lig_pattern)
         prot_matches = prot_res.GetSubstructMatches(self.prot_pattern)
         if lig_matches and prot_matches:
@@ -420,9 +400,7 @@ class DoubleAngle(Interaction, is_abstract=True):
         self._measure_distance = DISTANCE_FUNCTIONS_4ARGS[distance_atoms]
         self._metadata_mapping = metadata_mapping
 
-    def detect(
-        self, lig_res: "Residue", prot_res: "Residue"
-    ) -> Iterator["InteractionMetadata"]:
+    def detect(self, lig_res: "Residue", prot_res: "Residue") -> Iterator["InteractionMetadata"]:
         lig_matches = lig_res.GetSubstructMatches(self.lig_pattern)
         prot_matches = prot_res.GetSubstructMatches(self.prot_pattern)
         if lig_matches and prot_matches:
@@ -500,15 +478,11 @@ class BasePiStacking(Interaction, is_abstract=True):
         self.pi_ring = [MolFromSmarts(s) for s in pi_ring]
         self.distance = distance
         self.plane_angle = tuple(radians(i) for i in plane_angle)
-        self.normal_to_centroid_angle = tuple(
-            radians(i) for i in normal_to_centroid_angle
-        )
+        self.normal_to_centroid_angle = tuple(radians(i) for i in normal_to_centroid_angle)
         self.intersect = intersect
         self.intersect_radius = intersect_radius
 
-    def detect(
-        self, lig_res: "Residue", prot_res: "Residue"
-    ) -> Iterator["InteractionMetadata"]:
+    def detect(self, lig_res: "Residue", prot_res: "Residue") -> Iterator["InteractionMetadata"]:
         for pi_rings in product(self.pi_ring, repeat=2):
             res_matches = prot_res.GetSubstructMatches(pi_rings[0])
             lig_matches = lig_res.GetSubstructMatches(pi_rings[1])

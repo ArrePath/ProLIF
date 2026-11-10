@@ -28,17 +28,13 @@ if TYPE_CHECKING:
 @pytest.fixture
 def dummy_cls(cleanup_dummy: "Iterator[None]") -> type[Interaction]:
     class Dummy(Interaction):
-        def detect(
-            self, res1: "Molecule", res2: "Molecule"
-        ) -> "Iterator[InteractionMetadata]":
+        def detect(self, res1: "Molecule", res2: "Molecule") -> "Iterator[InteractionMetadata]":
             yield self.metadata(res1, res2, (2,), (4,), distance=4.2)
 
     return Dummy
 
 
-def test_interaction_base(
-    sdf_suppl: sdf_supplier, dummy_cls: type[Interaction]
-) -> None:
+def test_interaction_base(sdf_suppl: sdf_supplier, dummy_cls: type[Interaction]) -> None:
     interaction = dummy_cls()
     repr_ = repr(interaction)
     assert repr_.startswith("<")
@@ -104,16 +100,12 @@ class TestFingerprint:
                 "form but parametrized for the explicit-hydrogen form"
             ),
         ):
-            Fingerprint(
-                implicit_hydrogens=True, parameters={"HBDonor": {"distance": 4.2}}
-            )
+            Fingerprint(implicit_hydrogens=True, parameters={"HBDonor": {"distance": 4.2}})
 
     def test_n_interactions(self, fp: Fingerprint) -> None:
         assert fp.n_interactions == len(fp.interactions)
 
-    def test_bitvector(
-        self, any_fp: Fingerprint, ligand_mol: "Molecule", protein_mol: "Molecule"
-    ) -> None:
+    def test_bitvector(self, any_fp: Fingerprint, ligand_mol: "Molecule", protein_mol: "Molecule") -> None:
         bv = any_fp.bitvector(ligand_mol[0], protein_mol["ASP129.A"])
         assert len(bv) == any_fp.n_interactions
         assert (bv == 0).any()
@@ -121,16 +113,11 @@ class TestFingerprint:
         if any_fp.count:
             assert (bv > 1).any()
 
-    def test_metadata(
-        self, any_fp: Fingerprint, ligand_mol: "Molecule", protein_mol: "Molecule"
-    ) -> None:
+    def test_metadata(self, any_fp: Fingerprint, ligand_mol: "Molecule", protein_mol: "Molecule") -> None:
         metadata = any_fp.metadata(ligand_mol[0], protein_mol["ASP129.A"])
         assert metadata
         assert "HBAcceptor" not in metadata
-        assert all(
-            isinstance(cationic["indices"]["ligand"], tuple)
-            for cationic in metadata["Cationic"]
-        )
+        assert all(isinstance(cationic["indices"]["ligand"], tuple) for cationic in metadata["Cationic"])
 
     def test_run_residues(
         self,
@@ -176,26 +163,20 @@ class TestFingerprint:
         assert (lig_id, res) in fp_simple.ifp[0]
         u.trajectory[0]
 
-    def test_generate(
-        self, fp_simple: Fingerprint, ligand_mol: "Molecule", protein_mol: "Molecule"
-    ) -> None:
+    def test_generate(self, fp_simple: Fingerprint, ligand_mol: "Molecule", protein_mol: "Molecule") -> None:
         ifp = fp_simple.generate(ligand_mol, protein_mol)
         key = (ResidueId("LIG", 1, "G"), ResidueId("VAL", 201, "A"))
         bv = ifp[key]
         assert isinstance(bv, np.ndarray)
         assert bv[0] is np.True_
 
-    def test_generate_metadata(
-        self, fp_simple: Fingerprint, ligand_mol: "Molecule", protein_mol: "Molecule"
-    ) -> None:
+    def test_generate_metadata(self, fp_simple: Fingerprint, ligand_mol: "Molecule", protein_mol: "Molecule") -> None:
         ifp = fp_simple.generate(ligand_mol, protein_mol, metadata=True)
         key = (ResidueId("LIG", 1, "G"), ResidueId("VAL", 201, "A"))
         int_data = ifp[key]
         assert "Hydrophobic" in int_data
 
-    def test_generate_ignore(
-        self, ligand_mol: "Molecule", protein_mol: "Molecule"
-    ) -> None:
+    def test_generate_ignore(self, ligand_mol: "Molecule", protein_mol: "Molecule") -> None:
         fp = Fingerprint(["Hydrophobic"], ignore=lambda _res1, _res2: True)
         ifp = fp.generate(ligand_mol, protein_mol, metadata=True)
         assert not ifp
@@ -234,23 +215,16 @@ class TestFingerprint:
         else:
             traj = u.trajectory[trajectory_slice]
 
-        fp_simple.run(
-            traj, ligand_ag, protein_ag, residues=None, progress=False, n_jobs=n_jobs
-        )
+        fp_simple.run(traj, ligand_ag, protein_ag, residues=None, progress=False, n_jobs=n_jobs)
 
         assert hasattr(fp_simple, "ifp")
         ifp = fp_simple.ifp[0]
         interactions = next(iter(ifp.values()))
         assert isinstance(interactions, dict)
         metadata_tuple = next(iter(interactions.values()))
-        assert all(
-            key in metadata_tuple[0]
-            for key in ["indices", "parent_indices", "distance"]
-        )
+        assert all(key in metadata_tuple[0] for key in ["indices", "parent_indices", "distance"])
 
-    def test_run_from_iterable(
-        self, fp_simple: Fingerprint, protein_mol: "Molecule"
-    ) -> None:
+    def test_run_from_iterable(self, fp_simple: Fingerprint, protein_mol: "Molecule") -> None:
         path = str(datapath / "vina" / "vina_output.sdf")
         lig_suppl = list(sdf_supplier(path))
         fp_simple.run_from_iterable(lig_suppl[:2], protein_mol, progress=False)
@@ -425,9 +399,7 @@ class TestFingerprint:
     def test_pickle(self, fp_to_pickle: Fingerprint, fp_pkled: Fingerprint) -> None:
         assert fp_to_pickle.interactions.keys() == fp_pkled.interactions.keys()
         assert len(fp_to_pickle.ifp) == len(fp_pkled.ifp)
-        for frame_ifp, frame_pkl_ifp in zip(
-            fp_to_pickle.ifp, fp_pkled.ifp, strict=True
-        ):
+        for frame_ifp, frame_pkl_ifp in zip(fp_to_pickle.ifp, fp_pkled.ifp, strict=True):
             assert frame_ifp == frame_pkl_ifp
 
     def test_pickle_custom_interaction(self, fp_unpkl: Fingerprint) -> None:
@@ -483,9 +455,7 @@ class TestFingerprint:
         )
         mocked.assert_called_once()
 
-    def test_run_serial_on_xtc_runs_whole_trajectory(
-        self, u: mda.Universe, ligand_ag: "AtomGroup"
-    ) -> None:
+    def test_run_serial_on_xtc_runs_whole_trajectory(self, u: mda.Universe, ligand_ag: "AtomGroup") -> None:
         """When checking wether a single timestep was passed or a trajectory,
         :meth:`Fingerprint._run_serial` was only checking if the object had a
         `frame` attribute, without checking for `n_frames` first. This would lead to
@@ -502,9 +472,7 @@ class TestFingerprint:
         )
         assert len(fp.ifp) == u.trajectory.n_frames
 
-    def test_run_iter_multiproc_serial_same(
-        self, fp: Fingerprint, protein_mol: "Molecule"
-    ) -> None:
+    def test_run_iter_multiproc_serial_same(self, fp: Fingerprint, protein_mol: "Molecule") -> None:
         run = fp.run_from_iterable
         path = str(datapath / "vina" / "vina_output.sdf")
         lig_suppl = sdf_supplier(path)
@@ -568,21 +536,15 @@ class TestFingerprint:
         water_atomgroups: tuple["AtomGroup", "AtomGroup", "AtomGroup"],
     ) -> None:
         ligand, protein, water = water_atomgroups
-        fp = Fingerprint(
-            ["HBDonor", "WaterBridge"], parameters={"WaterBridge": {"water": water}}
-        )
+        fp = Fingerprint(["HBDonor", "WaterBridge"], parameters={"WaterBridge": {"water": water}})
         fp.run(water_u.trajectory[:1], ligand, protein, n_jobs=1)
 
         assert "WaterBridge" in fp.ifp[0]["QNB1.X", "TRP400.X"]
         assert "HBDonor" in fp.ifp[0]["QNB1.X", "ASN404.X"]
 
-    def test_water_bridge_run_iter(
-        self, water_mols: tuple["Molecule", "Molecule", "Molecule"]
-    ) -> None:
+    def test_water_bridge_run_iter(self, water_mols: tuple["Molecule", "Molecule", "Molecule"]) -> None:
         ligand, protein, water = water_mols
-        fp = Fingerprint(
-            ["HBDonor", "WaterBridge"], parameters={"WaterBridge": {"water": water}}
-        )
+        fp = Fingerprint(["HBDonor", "WaterBridge"], parameters={"WaterBridge": {"water": water}})
         fp.run_from_iterable([ligand], protein)
 
         assert "WaterBridge" in fp.ifp[0]["QNB1.X", "TRP400.X"]
@@ -597,9 +559,7 @@ class TestFingerprint:
         ligand, protein, water = water_atomgroups
         set_converter_cache_size(2)
         mocked = Mock(wraps=set_converter_cache_size)
-        monkeypatch.setattr(
-            Fingerprint, "_run_bridged_analysis", lambda *_args, **_kwargs: None
-        )
+        monkeypatch.setattr(Fingerprint, "_run_bridged_analysis", lambda *_args, **_kwargs: None)
         monkeypatch.setattr("prolif.fingerprint.set_converter_cache_size", mocked)
 
         fp = Fingerprint(["WaterBridge"], parameters={"WaterBridge": {"water": water}})

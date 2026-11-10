@@ -81,8 +81,7 @@ type-check = [
     "types-psutil",
 ]
 dev = [
-    "ruff==0.11.2",                   # keep synced with formatting_linting.yml
-    "black[jupyter]",
+    "ruff==0.17.4",  # sync required-version, .pre-commit-config.yaml and formatting_linting.yml
     "poethepoet>=0.33.0",
     { include-group = "tests" },
     { include-group = "docs" },
@@ -117,10 +116,7 @@ default-groups = ["dev"]
 
 [tool.poe.tasks.format-check]
 help = "Checks that the code and notebooks don't require formatting"
-sequence = [
-    { cmd = "ruff format --diff" },
-    { cmd = "black --diff docs/notebooks/" },
-]
+cmd = "ruff format --check ."
 
 [tool.poe.tasks.lint-check]
 help = "Checks if the code requires linting"
@@ -132,7 +128,7 @@ sequence = [{ ref = "format-check" }, { ref = "lint-check" }]
 
 [tool.poe.tasks.format]
 help = "Formats the code and notebooks"
-sequence = [{ cmd = "ruff format" }, { cmd = "black docs/notebooks/" }]
+cmd = "ruff format ."
 
 [tool.poe.tasks.lint]
 help = "Lints the code"
@@ -195,8 +191,9 @@ disallow_any_unimported = false
 testpaths = ["tests"]
 
 [tool.ruff]
+required-version = "0.17.4"
+line-length = 120
 extend-exclude = [
-    "*.ipynb",
     ".ipynb_checkpoints",
     ".pytest_cache",
     ".vscode",
@@ -205,6 +202,7 @@ extend-exclude = [
 ]
 
 [tool.ruff.lint]
+exclude = ["*.ipynb"]
 select = [
     # pycodestyle
     "E",
@@ -244,6 +242,8 @@ select = [
     "I",
 ]
 ignore = [
+    # Defer lint migrations introduced since the previous Ruff 0.11 baseline.
+    "UP052", "RUF069", "RUF075", "RUF105", "RUF201",
     "PLW3201",
     "PLW1514",
     "PTH123",
@@ -257,7 +257,6 @@ ignore = [
     "PLR1702",
     "PLR2004",
     "PLR6301",
-    "PD901",
     "PT001",
     "PT018",
     "FURB103",
@@ -267,13 +266,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 "__init__.py" = ["F401"]
 "tests/*" = ["ARG001"]
-
-[tool.isort]
-profile = "black"
-
-[tool.black]
-target-version = ["py310", "py311", "py312", "py313"]
-include = '(docs/notebooks/.+\.ipynb)$'
+# The runtime and TYPE_CHECKING imports are intentional; no import refactor here.
+"prolif/plotting/network/lignetwork.py" = ["F811"]
 
 [tool.coverage.report]
 include_namespace_packages = true
@@ -284,3 +278,7 @@ exclude_also = [
     "@.*abstractmethod",
 ]
 omit = ["prolif/typeshed.py"]
+
+[tool.ruff.format]
+# Format Python source and notebooks, not Markdown documentation snippets.
+exclude = ["*.md"]

@@ -14,9 +14,7 @@ import sys
 
 from rdkit import Chem
 
-PROLIF_PICKLE_OPTIONS = (
-    Chem.PropertyPickleOptions.AtomProps ^ Chem.PropertyPickleOptions.MolProps
-)
+PROLIF_PICKLE_OPTIONS = Chem.PropertyPickleOptions.AtomProps ^ Chem.PropertyPickleOptions.MolProps
 
 
 class RDKitPickleHandler:

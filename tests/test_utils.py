@@ -126,9 +126,7 @@ def test_centroid() -> None:
         (120, 0, 30, True, False),
     ],
 )
-def test_angle_limits(
-    angle: float, mina: float, maxa: float, ring: bool, expected: bool
-) -> None:
+def test_angle_limits(angle: float, mina: float, maxa: float, ring: bool, expected: bool) -> None:
     angle = radians(angle)
     mina = radians(mina)
     maxa = radians(maxa)
@@ -326,9 +324,7 @@ def test_select_over_trajectory(
     expected_num_atoms: list[int],
 ) -> None:
     ligand_selection = water_u.select_atoms("resname QNB")
-    atomgroups = select_over_trajectory(
-        water_u, water_u.trajectory[:5], *selections, ligand=ligand_selection
-    )
+    atomgroups = select_over_trajectory(water_u, water_u.trajectory[:5], *selections, ligand=ligand_selection)
     assert len(atomgroups) == expected_num_groups
     for group, expected in zip(atomgroups, expected_num_atoms, strict=True):
         assert group.n_atoms == expected

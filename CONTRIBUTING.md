@@ -139,6 +139,17 @@ for more details.
 
   c. Code formatting and linting
 
+Python source and notebooks use the Ruff version pinned in `.pre-commit-config.yaml`
+with a 120-character line length. Install the hook once per clone and run the
+same formatter as CI:
+
+```sh
+uvx --from pre-commit==4.6.2 pre-commit install
+uvx --from pre-commit==4.6.2 pre-commit run ruff-format --all-files
+```
+
+Markdown documentation snippets are not reformatted.
+
 You can check if your code complies with our code style standards with the following command:
 ```
 uv run poe style-check

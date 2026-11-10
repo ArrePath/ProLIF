@@ -26,9 +26,7 @@ class TestGetNJobs:
         with pytest.raises(ValueError, match="n_jobs must be > 0"):
             get_n_jobs(-1)
 
-    def test_env_variable_used_when_n_jobs_none(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_env_variable_used_when_n_jobs_none(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """When n_jobs is None, use PROLIF_N_JOBS env variable."""
         monkeypatch.setenv("PROLIF_N_JOBS", "6")
         assert get_n_jobs() == 6

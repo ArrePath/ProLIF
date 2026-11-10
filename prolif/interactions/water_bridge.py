@@ -92,9 +92,7 @@ class WaterBridge(BridgedInteraction):
         self.water = water
         # handle AtomGroup generated with `updating=True` automatically
         self.water_conv_kwargs = atomgroup_converter_kwargs or (
-            {"NoImplicit": False, "cache": False}
-            if isinstance(water, UpdatingAtomGroup)
-            else {}
+            {"NoImplicit": False, "cache": False} if isinstance(water, UpdatingAtomGroup) else {}
         )
         self.order = order
         self.min_order = min_order
@@ -129,7 +127,7 @@ class WaterBridge(BridgedInteraction):
             An MDAnalysis AtomGroup for the ligand
         prot : MDAnalysis.core.groups.AtomGroup
             An MDAnalysis AtomGroup for the protein (with multiple residues)
-        """  # noqa: E501
+        """
         water_obj = cast("MDAObject", self.water)
         n_jobs = self.kwargs.pop("n_jobs", None)
         parallel_strategy = self.kwargs.pop("parallel_strategy", "queue")
@@ -189,9 +187,7 @@ class WaterBridge(BridgedInteraction):
 
         return self.ifp
 
-    def run_from_iterable(
-        self, lig_iterable: Iterable["Molecule"], prot_mol: "Molecule"
-    ) -> "IFPResults":
+    def run_from_iterable(self, lig_iterable: Iterable["Molecule"], prot_mol: "Molecule") -> "IFPResults":
         """Run the water-bridge analysis for an iterable of molecules.
 
         Parameters
@@ -204,25 +200,17 @@ class WaterBridge(BridgedInteraction):
         """
         n_jobs = self.kwargs.pop("n_jobs", None)
         runner = (
-            self.water_fp._run_iter_serial
-            if n_jobs == 1
-            else partial(self.water_fp._run_iter_parallel, n_jobs=n_jobs)
+            self.water_fp._run_iter_serial if n_jobs == 1 else partial(self.water_fp._run_iter_parallel, n_jobs=n_jobs)
         )
         water_obj = cast("Molecule", self.water)
         # Run analysis for ligand-water and water-protein interactions
-        lig_water_ifp: "IFPResults" = runner(
-            lig_iterable, water_obj, residues=None, **self.kwargs
-        )
-        water_prot_ifp: "IFPResults" = runner(
-            [water_obj], prot_mol, residues=self.residues, **self.kwargs
-        )
+        lig_water_ifp: "IFPResults" = runner(lig_iterable, water_obj, residues=None, **self.kwargs)
+        water_prot_ifp: "IFPResults" = runner([water_obj], prot_mol, residues=self.residues, **self.kwargs)
         ifp_wp = water_prot_ifp[0]  # Water → Protein
 
         if self.order >= 2:
             # Run water-water interaction analysis
-            water_ifp: "IFPResults" = runner(
-                [water_obj], water_obj, residues=None, **self.kwargs
-            )
+            water_ifp: "IFPResults" = runner([water_obj], water_obj, residues=None, **self.kwargs)
             ifp_ww: IFP | None = water_ifp[0]  # WaterX -> WaterY
         else:
             ifp_ww = None
@@ -282,9 +270,7 @@ class WaterBridge(BridgedInteraction):
                         interaction=int_name,
                         metadata=metadata,
                     )
-                    graph.add_edge(
-                        data.ligand, data.protein, int_data=data, water_only=True
-                    )
+                    graph.add_edge(data.ligand, data.protein, int_data=data, water_only=True)
 
         # find all edge paths of length up to `order + 1`
         for source in nodes["ligand"]:
@@ -339,12 +325,7 @@ class WaterBridge(BridgedInteraction):
         for data, role in [
             (data_lw, "protein"),
             (data_wp, "ligand"),
-            *it.chain.from_iterable(
-                [
-                    [(data_ww, "ligand"), (data_ww, "protein")]
-                    for data_ww in data_ww_args
-                ]
-            ),
+            *it.chain.from_iterable([[(data_ww, "ligand"), (data_ww, "protein")] for data_ww in data_ww_args]),
         ]:
             resid = getattr(data, role)
             water_indices[str(resid)].update(data.metadata["indices"][role])
@@ -378,12 +359,7 @@ class WaterBridge(BridgedInteraction):
                 dict.fromkeys(  # uniquify but keep order
                     [
                         data_lw.protein,
-                        *it.chain.from_iterable(
-                            [
-                                [data_ww.ligand, data_ww.protein]
-                                for data_ww in data_ww_args
-                            ]
-                        ),
+                        *it.chain.from_iterable([[data_ww.ligand, data_ww.protein] for data_ww in data_ww_args]),
                         data_wp.ligand,
                     ]
                 )
@@ -398,21 +374,14 @@ class WaterBridge(BridgedInteraction):
                 for suffix, data in [
                     (f"_ligand_{data_lw.protein}", data_lw),
                     *it.chain.from_iterable(
-                        [
-                            [(f"_{data_ww.ligand}_{data_ww.protein}", data_ww)]
-                            for data_ww in data_ww_args
-                        ]
+                        [[(f"_{data_ww.ligand}_{data_ww.protein}", data_ww)] for data_ww in data_ww_args]
                     ),
                     (f"_{data_wp.ligand}_protein", data_wp),
                 ]
                 for key in ["distance", "DHA_angle"]
             },
-            "distance": sum(
-                data.metadata["distance"] for data in [data_lw, *data_ww_args, data_wp]
-            ),
+            "distance": sum(data.metadata["distance"] for data in [data_lw, *data_ww_args, data_wp]),
         }
 
         # store metadata
-        self.ifp[frame].setdefault((data_lw.ligand, data_wp.protein), {}).setdefault(
-            "WaterBridge", []
-        ).append(metadata)  # type: ignore[attr-defined]
+        self.ifp[frame].setdefault((data_lw.ligand, data_wp.protein), {}).setdefault("WaterBridge", []).append(metadata)  # type: ignore[attr-defined]

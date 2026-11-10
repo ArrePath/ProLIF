@@ -25,9 +25,7 @@ from prolif.residue import Residue
 @pytest.fixture(scope="module")
 def xml_test_data() -> str:
     """Fixture to load the XML test data for altnames parsing."""
-    return (
-        datapath / "molecule_standardizer/templates/standard_aa_name.xml"
-    ).read_text()
+    return (datapath / "molecule_standardizer/templates/standard_aa_name.xml").read_text()
 
 
 def test_cif_template_reader() -> None:
@@ -49,9 +47,7 @@ def test_cif_template_reader() -> None:
     assert len(bond_table) > 0
 
     # Test with standard_aa.cif (multi-block)
-    result_aa = cif_template_reader(
-        datapath / "molecule_standardizer/templates/standard_aa.cif"
-    )
+    result_aa = cif_template_reader(datapath / "molecule_standardizer/templates/standard_aa.cif")
     assert isinstance(result_aa, gemmi.cif.Document)
     assert len(result_aa) == 26  # 20 standard + variants
     assert result_aa.find_block("ALA") is not None
@@ -76,9 +72,7 @@ class TestMoleculeStandardizer:
     @pytest.fixture(scope="class")
     def input_rdmol(self, input_path: str, request: pytest.FixtureRequest) -> Chem.Mol:
         """Return the RDKit Molecule object for the input file."""
-        input_mol = Chem.MolFromPDBFile(
-            input_path, removeHs=getattr(request, "param", False)
-        )
+        input_mol = Chem.MolFromPDBFile(input_path, removeHs=getattr(request, "param", False))
         DetermineConnectivity(input_mol, useHueckel=True)
         for atm in input_mol.GetAtoms():
             atm.SetNoImplicit(False)
@@ -90,9 +84,7 @@ class TestMoleculeStandardizer:
         return Molecule.from_rdkit(input_rdmol)
 
     @pytest.fixture(scope="class")
-    def input_topology(
-        self, request: pytest.FixtureRequest
-    ) -> str | Chem.Mol | Molecule:
+    def input_topology(self, request: pytest.FixtureRequest) -> str | Chem.Mol | Molecule:
         """Return the input topology for the standardize method."""
         return request.getfixturevalue(request.param)  # type: ignore[no-any-return]
 
@@ -130,9 +122,7 @@ class TestMoleculeStandardizer:
         return [*mol_templates, *cif_templates]
 
     @pytest.fixture(scope="class")
-    def any_templates(
-        self, request: pytest.FixtureRequest
-    ) -> list[gemmi.cif.Document] | list[tuple[str, Chem.Mol]]:
+    def any_templates(self, request: pytest.FixtureRequest) -> list[gemmi.cif.Document] | list[tuple[str, Chem.Mol]]:
         return request.getfixturevalue(request.param)  # type: ignore[no-any-return]
 
     @pytest.fixture(scope="class")
@@ -194,35 +184,25 @@ class TestMoleculeStandardizer:
             match=r"Could not guess the forcefield based on the residue names\. "
             r"CYS is assigned to neutral CYS \(charge = 0\)\.",
         ):
-            MoleculeStandardizer.convert_to_standard_resname(
-                resname="CYS", forcefield_name="unknown"
-            )
+            MoleculeStandardizer.convert_to_standard_resname(resname="CYS", forcefield_name="unknown")
 
         # gromos's CYS -> CYX
-        resname = MoleculeStandardizer.convert_to_standard_resname(
-            resname="CYS", forcefield_name="gromos"
-        )
+        resname = MoleculeStandardizer.convert_to_standard_resname(resname="CYS", forcefield_name="gromos")
         assert resname == "CYX"
 
         # Test with an unknown residue name
-        resname = MoleculeStandardizer.convert_to_standard_resname(
-            resname="HSD", forcefield_name="unknown"
-        )
+        resname = MoleculeStandardizer.convert_to_standard_resname(resname="HSD", forcefield_name="unknown")
         assert resname == "HID"
 
     def test_n_residue_heavy_atoms(self, input_molecule: Molecule) -> None:
         """Test the counting of heavy atoms in residues."""
 
         # Test with a Molecule object
-        n_heavy_atoms = MoleculeStandardizer.n_residue_heavy_atoms(
-            input_molecule.residues[1]
-        )
+        n_heavy_atoms = MoleculeStandardizer.n_residue_heavy_atoms(input_molecule.residues[1])
         assert isinstance(n_heavy_atoms, int)
         assert n_heavy_atoms == 11
 
-    def test_engine_n_heavy_atoms(
-        self, cif_templates: list[gemmi.cif.Document]
-    ) -> None:
+    def test_engine_n_heavy_atoms(self, cif_templates: list[gemmi.cif.Document]) -> None:
         """Test the counting of heavy atoms in template engines."""
         # default engines
         standardizer = MoleculeStandardizer()
@@ -237,9 +217,7 @@ class TestMoleculeStandardizer:
         mol_engine = RDKitMolTemplateEngine("XYZ", Chem.MolFromSmiles("C1=CC=CC=C1"))
         assert mol_engine.n_heavy_atoms() == 6
 
-    @pytest.mark.parametrize(
-        "any_templates", ["mol_templates", "cif_templates"], indirect=True
-    )
+    @pytest.mark.parametrize("any_templates", ["mol_templates", "cif_templates"], indirect=True)
     def test_engine_exc_shows_residue_id(
         self,
         monkeypatch: pytest.MonkeyPatch,
@@ -247,9 +225,7 @@ class TestMoleculeStandardizer:
     ) -> None:
         mock = Mock(side_effect=SystemError("test"))
         monkeypatch.setattr("prolif.io.template_engine.CIFTemplateEngine.apply", mock)
-        monkeypatch.setattr(
-            "prolif.io.template_engine.RDKitMolTemplateEngine.apply", mock
-        )
+        monkeypatch.setattr("prolif.io.template_engine.RDKitMolTemplateEngine.apply", mock)
         standardizer = MoleculeStandardizer(templates=any_templates)
 
         with pytest.raises(
@@ -305,9 +281,7 @@ class TestMoleculeStandardizer:
             assert at1.GetTotalDegree() == at2.GetTotalDegree()
 
         for bond1 in fixed_cif.GetBonds():
-            bond2 = fixed_rdkit.GetBondBetweenAtoms(
-                bond1.GetBeginAtomIdx(), bond1.GetEndAtomIdx()
-            )
+            bond2 = fixed_rdkit.GetBondBetweenAtoms(bond1.GetBeginAtomIdx(), bond1.GetEndAtomIdx())
             assert bond1.GetBondType() == bond2.GetBondType()
 
     def test_fix_molecule_bond_orders_no_template(
@@ -385,9 +359,7 @@ class TestMoleculeStandardizer:
         ):
             standardizer_default("invalid_format")
 
-    @pytest.mark.parametrize(
-        "input_topology", ["input_path", "input_molecule", "input_rdmol"], indirect=True
-    )
+    @pytest.mark.parametrize("input_topology", ["input_path", "input_molecule", "input_rdmol"], indirect=True)
     def test_standardize(
         self,
         all_templates: list[gemmi.cif.Document | tuple[str, Chem.Mol]],
@@ -416,9 +388,7 @@ class TestMoleculeStandardizer:
         assert isinstance(ben_mol, Molecule)
         all_bonds_info = []
         for bond in ben_mol.residues[0].GetBonds():
-            if (bond.GetBeginAtom().GetAtomicNum() == 1) or (
-                bond.GetEndAtom().GetAtomicNum() == 1
-            ):
+            if (bond.GetBeginAtom().GetAtomicNum() == 1) or (bond.GetEndAtom().GetAtomicNum() == 1):
                 # skip bonds involving hydrogen atoms
                 continue
 

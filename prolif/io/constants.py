@@ -17,9 +17,7 @@ from prolif.io.xml import parse_altnames
 #                   mapping atomnames to canonical
 # Source:
 # https://github.com/OpenFreeEnergy/pdbinf/blob/c0ddf00bd068d7860b2e99b9f03847c890e3efb5/src/pdbinf/_aliases.py#L323
-_PDB_NAMES = Path(
-    str(datapath / "molecule_standardizer/templates/standard_aa_name.xml")
-)
+_PDB_NAMES = Path(str(datapath / "molecule_standardizer/templates/standard_aa_name.xml"))
 RESNAME_ALIASES, ATOMNAME_ALIASES = parse_altnames(_PDB_NAMES.read_text())
 
 # Source:
@@ -30,9 +28,7 @@ MAX_DISULPHIDE_LENGTH = 2.5
 # amino acid template
 # Source:
 # https://github.com/OpenFreeEnergy/pdbinf/blob/c0ddf00bd068d7860b2e99b9f03847c890e3efb5/src/pdbinf/_standard_AAs.py#L6
-STANDARD_AA = cif_template_reader(
-    datapath / "molecule_standardizer/templates/standard_aa.cif"
-)
+STANDARD_AA = cif_template_reader(datapath / "molecule_standardizer/templates/standard_aa.cif")
 # --------- the above is originally from openmm and pdbinf ---------
 
 # Other constants are defined as follows:
@@ -288,7 +284,5 @@ AMBER_POOL = {
     "CVAL",
 }
 
-TERMINAL_OXYGEN_NAMES = {
-    key for key, value in ATOMNAME_ALIASES["Protein"].items() if value.strip() == "OXT"
-}
+TERMINAL_OXYGEN_NAMES = {key for key, value in ATOMNAME_ALIASES["Protein"].items() if value.strip() == "OXT"}
 TERMINAL_OXYGEN_NAMES.add("OXT")

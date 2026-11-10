@@ -44,11 +44,7 @@ def benzene_universe() -> "Universe":
 
 @pytest.fixture(scope="module")
 def interaction_instances() -> dict[str, Interaction]:
-    return {
-        name: cls()
-        for name, cls in _INTERACTIONS.items()
-        if name != "Interaction" and not name.startswith("_")
-    }
+    return {name: cls() for name, cls in _INTERACTIONS.items() if name != "Interaction" and not name.startswith("_")}
 
 
 @pytest.fixture(scope="session")
@@ -66,9 +62,7 @@ def interaction_qmol(
     request: pytest.FixtureRequest, interaction_instances: dict[str, Interaction]
 ) -> Chem.Mol | list[Chem.Mol]:
     int_name, parameter = cast(str, request.param).split(".")
-    return cast(
-        Chem.Mol | list[Chem.Mol], getattr(interaction_instances[int_name], parameter)
-    )
+    return cast(Chem.Mol | list[Chem.Mol], getattr(interaction_instances[int_name], parameter))
 
 
 @pytest.fixture(scope="module", params=[False, True])
@@ -168,9 +162,7 @@ class TestInteractions:
     def test_warning_supersede(self) -> None:
         class Dummy(Interaction):
             @abstractmethod
-            def detect(
-                self, lig_res: "Residue", prot_res: "Residue"
-            ) -> "Iterator[InteractionMetadata]":
+            def detect(self, lig_res: "Residue", prot_res: "Residue") -> "Iterator[InteractionMetadata]":
                 pass
 
         old = id(_INTERACTIONS["Dummy"])
@@ -178,9 +170,7 @@ class TestInteractions:
 
             class Dummy(Interaction):  # type: ignore[no-redef]
                 @abstractmethod
-                def detect(
-                    self, lig_res: "Residue", prot_res: "Residue"
-                ) -> "Iterator[InteractionMetadata]":
+                def detect(self, lig_res: "Residue", prot_res: "Residue") -> "Iterator[InteractionMetadata]":
                     pass
 
         new = id(_INTERACTIONS["Dummy"])
@@ -208,9 +198,7 @@ class TestInteractions:
         [("benzene", "cation")],
         indirect=["any_mol", "any_other_mol"],
     )
-    def test_vdwcontact_cache(
-        self, any_mol: "Molecule", any_other_mol: "Molecule"
-    ) -> None:
+    def test_vdwcontact_cache(self, any_mol: "Molecule", any_other_mol: "Molecule") -> None:
         vdw = VdWContact()
         assert vdw._vdw_cache == {}
         vdw.detect(any_mol[0], any_other_mol[0])
@@ -223,9 +211,7 @@ class TestInteractions:
         [("benzene", "cation")],
         indirect=["any_mol", "any_other_mol"],
     )
-    def test_vdwcontact_vdwradii_update(
-        self, any_mol: "Molecule", any_other_mol: "Molecule"
-    ) -> None:
+    def test_vdwcontact_vdwradii_update(self, any_mol: "Molecule", any_other_mol: "Molecule") -> None:
         vdw = VdWContact(vdwradii={"Na": 0})
         metadata = vdw.detect(any_mol[0], any_other_mol[0])
         assert next(metadata, None) is None
@@ -249,9 +235,7 @@ class TestInteractions:
 
     def test_vdwcontact_radii_missing(self) -> None:
         vdw = VdWContact(preset="mdanalysis")
-        with pytest.raises(
-            ValueError, match=r"van der Waals radius for atom .+ not found"
-        ):
+        with pytest.raises(ValueError, match=r"van der Waals radius for atom .+ not found"):
             vdw._get_radii_sum("X", "Y")
 
     @pytest.mark.parametrize(
@@ -377,28 +361,17 @@ class TestInteractions:
         expected: int,
     ) -> None:
         m = Chem.MolFromSmiles(smiles)
-        mols = (
-            [("with", Chem.AddHs(m))]
-            if explicit_h_only
-            else [("without", m), ("with", Chem.AddHs(m))]
-        )
+        mols = [("with", Chem.AddHs(m))] if explicit_h_only else [("without", m), ("with", Chem.AddHs(m))]
         for name, mol in mols:
             if isinstance(interaction_qmol, list):
-                n_matches = sum(
-                    len(mol.GetSubstructMatches(qmol)) for qmol in interaction_qmol
-                )
+                n_matches = sum(len(mol.GetSubstructMatches(qmol)) for qmol in interaction_qmol)
             else:
                 n_matches = len(mol.GetSubstructMatches(interaction_qmol))
-            assert n_matches == expected, (
-                f"Found {n_matches} matches for mol {name} hydrogens, "
-                f"expected {expected}"
-            )
+            assert n_matches == expected, f"Found {n_matches} matches for mol {name} hydrogens, expected {expected}"
 
     @pytest.mark.parametrize("sequence", ["ALG", "LLA", "ALL"])
     @pytest.mark.parametrize("implicit_h", [True, False])
-    def test_backbone_nitrogen_matched_as_acceptor(
-        self, sequence: str, implicit_h: bool
-    ) -> None:
+    def test_backbone_nitrogen_matched_as_acceptor(self, sequence: str, implicit_h: bool) -> None:
         """
         Test for temporary fix of issue #358.
 
@@ -411,9 +384,7 @@ class TestInteractions:
         if not implicit_h:
             mol = Chem.AddHs(mol, addResidueInfo=True)
         mol = prolif.Molecule.from_rdkit(mol)
-        acceptor_qmol = (
-            ImplicitHBAcceptor() if implicit_h else HBAcceptor()
-        ).lig_pattern
+        acceptor_qmol = (ImplicitHBAcceptor() if implicit_h else HBAcceptor()).lig_pattern
         res = mol[1]  # ignore first and last residues
         nitrogens = [a.GetIdx() for a in res.GetAtoms() if a.GetAtomicNum() == 7]
         acceptors = set().union(*res.GetSubstructMatches(acceptor_qmol))
@@ -445,9 +416,7 @@ class TestInteractions:
         # Test that implicit hydrogens are added to the query molecule
         mol = Chem.MolFromSmiles(smiles)
         if isinstance(interaction_qmol, list):
-            n_matches = sum(
-                len(mol.GetSubstructMatches(qmol)) for qmol in interaction_qmol
-            )
+            n_matches = sum(len(mol.GetSubstructMatches(qmol)) for qmol in interaction_qmol)
         else:
             n_matches = len(mol.GetSubstructMatches(interaction_qmol))
         assert n_matches == expected
@@ -509,9 +478,7 @@ class TestInteractions:
             prolif.Molecule.from_mda(r2)[0],
         )
 
-    def test_edgetoface_phe331(
-        self, ligand_mol: "Molecule", protein_mol: "Molecule", fingerprint: Fingerprint
-    ) -> None:
+    def test_edgetoface_phe331(self, ligand_mol: "Molecule", protein_mol: "Molecule", fingerprint: Fingerprint) -> None:
         lig, phe331 = ligand_mol[0], protein_mol["PHE331.B"]
         assert fingerprint.edgetoface.any(lig, phe331)  # type: ignore[attr-defined]
         assert not fingerprint.facetoface.any(lig, phe331)  # type: ignore[attr-defined]
@@ -541,24 +508,16 @@ class TestInteractions:
         metadata = next(interaction.detect(any_mol[0], any_other_mol[0]), {})
 
         # if water is involved in the interaction, no geometry checks are performed
-        if interaction.check_water_residue(
-            any_mol[0]
-        ) or interaction.check_water_residue(any_other_mol[0]):
+        if interaction.check_water_residue(any_mol[0]) or interaction.check_water_residue(any_other_mol[0]):
             # if the user wants to include water
             if ihb_include_water:
-                if (
-                    not interaction.check_water_residue(any_mol[0])
-                    and not ihb_ignore_geometry_checks
-                ):
+                if not interaction.check_water_residue(any_mol[0]) and not ihb_ignore_geometry_checks:
                     # if the acceptor is not a water residue
                     # and geometry checks are not ignored
                     # acceptor atom angle deviation should be present
                     assert "acceptor_atom_angle_deviation" in metadata
 
-                if (
-                    not interaction.check_water_residue(any_other_mol[0])
-                    and ihb_ignore_geometry_checks
-                ):
+                if not interaction.check_water_residue(any_other_mol[0]) and ihb_ignore_geometry_checks:
                     # if the donor is not a water residue
                     # and geometry checks are not ignored
                     # donor atom angle deviation should be present
@@ -585,17 +544,13 @@ class TestInteractions:
                 assert "acceptor_atom_angle_deviation" in metadata
 
                 if (
-                    any_mol[0]
-                    .GetAtomWithIdx(metadata["indices"]["ligand"][0])
-                    .GetHybridization()
+                    any_mol[0].GetAtomWithIdx(metadata["indices"]["ligand"][0]).GetHybridization()
                     == Chem.HybridizationType.SP2
                 ):
                     assert "acceptor_plane_angle" in metadata
 
                 if (
-                    any_other_mol[0]
-                    .GetAtomWithIdx(metadata["indices"]["protein"][0])
-                    .GetHybridization()
+                    any_other_mol[0].GetAtomWithIdx(metadata["indices"]["protein"][0]).GetHybridization()
                     == Chem.HybridizationType.SP2
                 ):
                     assert "donor_plane_angle" in metadata
@@ -643,9 +598,7 @@ class TestInteractions:
         )
         interaction.tolerance_dev_aaa = tolerance_aaa
         interaction.tolerance_dev_apa = tolerance_apa
-        assert (
-            next(interaction(ihb_acceptor_tyr167b[0], ihb_ligand[0]), False) == expected
-        )
+        assert next(interaction(ihb_acceptor_tyr167b[0], ihb_ligand[0]), False) == expected
 
     def test_implicithbacceptor_get_atom_angles(
         self,
@@ -698,9 +651,7 @@ class TestInteractions:
             ("C#C", nullcontext(180.0)),
             (
                 "P(Cl)(Cl)(Cl)(Cl)Cl",
-                pytest.raises(
-                    KeyError, match=r"rdkit.Chem.rdchem.HybridizationType.SP3D"
-                ),
+                pytest.raises(KeyError, match=r"rdkit.Chem.rdchem.HybridizationType.SP3D"),
             ),
         ],
     )
@@ -799,9 +750,7 @@ class TestBridgedInteractions:
         int_data = all_int_data[-1]
         assert "distance_TIP383.X_TIP317.X" in int_data.metadata
 
-    def test_run_iter_water_bridge(
-        self, water_mols: tuple["Molecule", "Molecule", "Molecule"]
-    ) -> None:
+    def test_run_iter_water_bridge(self, water_mols: tuple["Molecule", "Molecule", "Molecule"]) -> None:
         ligand, protein, water = water_mols
         fp = Fingerprint(["WaterBridge"], parameters={"WaterBridge": {"water": water}})
         # mimick multiple poses
@@ -811,13 +760,9 @@ class TestBridgedInteractions:
         assert int_data.interaction == "WaterBridge"
         assert str(int_data.protein) == "TRP400.X"
 
-    def test_higher_order_run_iter_water_bridge(
-        self, water_mols: tuple["Molecule", "Molecule", "Molecule"]
-    ) -> None:
+    def test_higher_order_run_iter_water_bridge(self, water_mols: tuple["Molecule", "Molecule", "Molecule"]) -> None:
         ligand, protein, water = water_mols
-        fp = Fingerprint(
-            ["WaterBridge"], parameters={"WaterBridge": {"water": water, "order": 2}}
-        )
+        fp = Fingerprint(["WaterBridge"], parameters={"WaterBridge": {"water": water, "order": 2}})
         # mimick multiple poses
         fp.run_from_iterable([ligand, ligand], protein)
         all_int_data = list(fp.ifp[0].interactions())

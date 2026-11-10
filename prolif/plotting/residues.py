@@ -48,12 +48,8 @@ def display_residues(
         Added ``sanitize`` parameter that defaults to False for easier debugging.
     """
     frags = []
-    residues_iterable = (
-        mol if residues_slice is None else mol.residues.select(residues_slice).values()
-    )
-    ipython_kwargs = (
-        {"maxMols": mol.n_residues} if hasattr(Chem.Mol, "_repr_svg_") else {}
-    )
+    residues_iterable = mol if residues_slice is None else mol.residues.select(residues_slice).values()
+    ipython_kwargs = {"maxMols": mol.n_residues} if hasattr(Chem.Mol, "_repr_svg_") else {}
 
     for residue in residues_iterable:
         resmol = Chem.RemoveHs(residue, sanitize=sanitize)

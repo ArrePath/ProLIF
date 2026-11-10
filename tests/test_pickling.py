@@ -15,11 +15,7 @@ def _reset_default_pickle_properties() -> Iterator[None]:
 
 
 def test_default() -> None:
-    assert (
-        RDKitPickleHandler(0).default_pickle
-        == RDKitPickleHandler.get()
-        == Chem.GetDefaultPickleProperties()
-    )
+    assert RDKitPickleHandler(0).default_pickle == RDKitPickleHandler.get() == Chem.GetDefaultPickleProperties()
 
 
 def test_pickling() -> None:

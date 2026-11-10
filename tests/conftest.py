@@ -33,8 +33,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:
     implicit_hbond_path = datapath / "implicitHbond"
     if not implicit_hbond_path.exists():
         pytest.exit(
-            "Example implicit Hbond data files are not accessible: "
-            f"{implicit_hbond_path!s} does not exist",
+            f"Example implicit Hbond data files are not accessible: {implicit_hbond_path!s} does not exist",
         )
 
     # ugly patch to add Mixin class as attribute to pytest so that we don't have to

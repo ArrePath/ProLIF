@@ -29,9 +29,7 @@ class TestResidueId:
             ("", None, ""),
         ],
     )
-    def test_init(
-        self, name: str | None, number: int | None, chain: str | None
-    ) -> None:
+    def test_init(self, name: str | None, number: int | None, chain: str | None) -> None:
         resid = ResidueId(name, number, chain)
         name = name or "UNK"
         number = number or 0
@@ -58,9 +56,7 @@ class TestResidueId:
             ("", None, ""),
         ],
     )
-    def test_from_atom(
-        self, name: str | None, number: int | None, chain: str | None
-    ) -> None:
+    def test_from_atom(self, name: str | None, number: int | None, chain: str | None) -> None:
         atom = Chem.Atom(1)
         mi = Chem.AtomPDBResidueInfo()
         if name is not None:
@@ -78,9 +74,7 @@ class TestResidueId:
         assert resid.number == number
         assert resid.chain == chain
 
-    @pytest.mark.parametrize(
-        ("use_segid", "expected"), [(True, "UNK42.13"), (False, "UNK42.A")]
-    )
+    @pytest.mark.parametrize(("use_segid", "expected"), [(True, "UNK42.13"), (False, "UNK42.A")])
     def test_from_atom_use_segid(self, use_segid: bool, expected: str) -> None:
         atom = Chem.Atom(1)
         mi = Chem.AtomPDBResidueInfo()
@@ -135,9 +129,7 @@ class TestResidueId:
             ("MN 123.A", ("MN", 123, "A")),
         ],
     )
-    def test_from_string(
-        self, resid_str: str, expected: tuple[str, int, str | None]
-    ) -> None:
+    def test_from_string(self, resid_str: str, expected: tuple[str, int, str | None]) -> None:
         resid = ResidueId.from_string(resid_str)
         assert resid == ResidueId(*expected)
 

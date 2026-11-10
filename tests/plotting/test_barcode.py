@@ -84,7 +84,6 @@ class TestBarcode:
         fp = plf.Fingerprint()
         with pytest.raises(
             RunRequiredError,
-            match="Please run the fingerprint analysis before attempting to display"
-            " results",
+            match="Please run the fingerprint analysis before attempting to display results",
         ):
             Barcode.from_fingerprint(fp)

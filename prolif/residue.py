@@ -18,9 +18,7 @@ if TYPE_CHECKING:
 
     from prolif.typeshed import ResidueKey
 
-_RE_RESID = re.compile(
-    r"(TIP[234]|T[234]P|H2O|[0-9][A-Z]{2}|[A-Z ]+)?(\d*)\.?([A-Z\d]{1,2})?"
-)
+_RE_RESID = re.compile(r"(TIP[234]|T[234]P|H2O|[0-9][A-Z]{2}|[A-Z ]+)?(\d*)\.?([A-Z\d]{1,2})?")
 
 
 class ResidueId:
@@ -207,9 +205,7 @@ class ResidueGroup(UserDict[ResidueId, Residue]):
 
     def __init__(self, residues: Iterable[Residue]):
         self._residues = cast(Sequence[Residue], np.asarray(residues, dtype=object))
-        resinfo = [
-            (r.resid.name, r.resid.number, r.resid.chain) for r in self._residues
-        ]
+        resinfo = [(r.resid.name, r.resid.number, r.resid.chain) for r in self._residues]
         try:
             name, number, chain = zip(*resinfo, strict=True)
         except ValueError:
@@ -226,8 +222,7 @@ class ResidueGroup(UserDict[ResidueId, Residue]):
         # bool is a subclass of int but shouldn't be used here
         if isinstance(key, bool):
             raise KeyError(
-                f"Expected a ResidueId, int, or str, got {type(key).__name__!r}"
-                " instead",
+                f"Expected a ResidueId, int, or str, got {type(key).__name__!r} instead",
             )
         if isinstance(key, int):
             return self._residues[key]

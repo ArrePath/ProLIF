@@ -94,12 +94,8 @@ class CIFTemplateEngine:
         return self._name
 
     def n_heavy_atoms(self) -> int:
-        atom_table = self._block.find(
-            "_chem_comp_atom.", ["alt_atom_id", "type_symbol"]
-        )
-        return sum(
-            1 for row in atom_table if row[0].strip() != "OXT" and row[1].strip() != "H"
-        )
+        atom_table = self._block.find("_chem_comp_atom.", ["alt_atom_id", "type_symbol"])
+        return sum(1 for row in atom_table if row[0].strip() != "OXT" and row[1].strip() != "H")
 
     def apply(self, residue: Residue) -> Residue:
         new_res = strip_bonds(residue)
@@ -107,9 +103,7 @@ class CIFTemplateEngine:
         return Residue(new_res)
 
 
-def assign_bond_orders_from_template(
-    template_mol: Chem.Mol, mol: Residue | Chem.Mol
-) -> Chem.Mol:
+def assign_bond_orders_from_template(template_mol: Chem.Mol, mol: Residue | Chem.Mol) -> Chem.Mol:
     """Assign bond orders from an RDKit template molecule to a residue.
 
     Parameters
@@ -177,9 +171,7 @@ _BOND_ORDER_MAP = {
 }
 
 
-def assign_intra_props(
-    mol: Chem.Mol, residue_name: str, block: gemmi.cif.Block
-) -> Chem.Mol:
+def assign_intra_props(mol: Chem.Mol, residue_name: str, block: gemmi.cif.Block) -> Chem.Mol:
     """Assign bonds and aromaticity based on residue and atom names
     from a gemmi CIF block.
 
@@ -218,13 +210,8 @@ def assign_intra_props(
     for atom in mol.GetAtoms():
         nm = atom.GetMonomerInfo().GetName().strip()
         nm = aliases.get(nm, nm)
-        if (
-            residue_name in FORMAL_CHARGE_ALIASES
-            and nm in FORMAL_CHARGE_ALIASES[residue_name]
-        ):
-            fc_special_assign_nm_idx_fc_pair[atom.GetIdx()] = FORMAL_CHARGE_ALIASES[
-                residue_name
-            ][nm]
+        if residue_name in FORMAL_CHARGE_ALIASES and nm in FORMAL_CHARGE_ALIASES[residue_name]:
+            fc_special_assign_nm_idx_fc_pair[atom.GetIdx()] = FORMAL_CHARGE_ALIASES[residue_name][nm]
         nm_2_idx[nm] = atom.GetIdx()
 
     logger.debug(f"assigning intra props for {residue_name}")
@@ -246,9 +233,7 @@ def assign_intra_props(
             # [different from pdbinf] we prioritize SINGLE, DOUBLE, TRIPLE bonds
             order = _BOND_ORDER_MAP.get(order_str)
             if order is None:
-                order = (
-                    Chem.BondType.AROMATIC if arom == "Y" else Chem.BondType.UNSPECIFIED
-                )
+                order = Chem.BondType.AROMATIC if arom == "Y" else Chem.BondType.UNSPECIFIED
 
             logger.debug(f"adding bond: {nm1}-{nm2} at {idx1} {idx2} {order}")
 
@@ -279,8 +264,7 @@ def assign_intra_props(
             atom = em.GetAtomWithIdx(fc_special_assign_nm_idx)
             atom.SetFormalCharge(fc_to_assign)
             logger.debug(
-                f"Assigned {residue_name}'s formal charge {fc_to_assign} "
-                f"on {atom.GetPDBResidueInfo().GetName()}."
+                f"Assigned {residue_name}'s formal charge {fc_to_assign} on {atom.GetPDBResidueInfo().GetName()}."
             )
 
     # [different from pdbinf] sanitize the molecule
@@ -336,9 +320,7 @@ def _assign_intra_props_lone_H(em: Chem.RWMol) -> Chem.RWMol:
                 minidx, mindist = idx2, d
 
             if mindist < MAX_AMIDE_LENGTH:
-                logger.debug(
-                    f"attached hydrogen {idx} to heavy atom {minidx} d={mindist}"
-                )
+                logger.debug(f"attached hydrogen {idx} to heavy atom {minidx} d={mindist}")
                 additional_bonds.append((idx, minidx))
     if additional_bonds:
         for i, j in additional_bonds:

@@ -157,7 +157,7 @@ class Molecule(BaseRDKitMol):
 
         .. versionchanged:: 2.1.0
             Added `use_segid`.
-        """  # noqa: E501
+        """
         ag = obj.select_atoms(selection) if selection else obj.atoms
         if ag.n_atoms == 0:
             raise mda.SelectionError("AtomGroup is empty, please check your selection")
@@ -334,9 +334,7 @@ class pdbqt_supplier(Sequence[Molecule]):
         with catch_warning(message=r"^Failed to guess the mass"):
             pdbqt = mda.Universe(pdbqt_path)
         # set attributes needed by the converter
-        elements = [
-            mda.topology.guessers.guess_atom_element(x) for x in pdbqt.atoms.names
-        ]
+        elements = [mda.topology.guessers.guess_atom_element(x) for x in pdbqt.atoms.names]
         pdbqt.add_TopologyAttr("elements", elements)
         pdbqt.add_TopologyAttr("chainIDs", pdbqt.atoms.segids)
         pdbqt.atoms.types = pdbqt.atoms.elements
@@ -365,9 +363,7 @@ class pdbqt_supplier(Sequence[Molecule]):
         atoms_with_hydrogens: defaultdict[int, list[Chem.Atom]] = defaultdict(list)
         for atom in pdbqt_mol.GetAtoms():
             if atom.GetAtomicNum() == 1:
-                atoms_with_hydrogens[
-                    atom.GetNeighbors()[0].GetIntProp("_MDAnalysis_index")
-                ].append(atom)
+                atoms_with_hydrogens[atom.GetNeighbors()[0].GetIntProp("_MDAnalysis_index")].append(atom)
         # mapping between atom that should be bearing a H in RWMol and
         # corresponding hydrogens
         reverse_mapping: dict[int, list[Chem.Atom]] = {}
@@ -568,9 +564,7 @@ class mol2_supplier(Sequence[Molecule]):
             return sum(line.startswith("@<TRIPOS>MOLECULE") for line in f)
 
 
-def split_molecule(
-    mol: Molecule, predicate: Callable[[ResidueId], bool]
-) -> tuple[Molecule, Molecule]:
+def split_molecule(mol: Molecule, predicate: Callable[[ResidueId], bool]) -> tuple[Molecule, Molecule]:
     """
     Splits a molecule into two based on a predicate function. The first molecule
     returned contains all residues of the input mol for which the predicate function was
@@ -617,6 +611,4 @@ def split_molecule(
                 parent_idx = atom.GetUnsignedProp("mapindex")
                 new_idx = mapping[parent_idx]
                 atom.SetUnsignedProp("mapindex", new_idx)
-    return Molecule(lhs.GetMol(), residues=residues[1]), Molecule(
-        rhs.GetMol(), residues=residues[0]
-    )
+    return Molecule(lhs.GetMol(), residues=residues[1]), Molecule(rhs.GetMol(), residues=residues[0])

@@ -274,9 +274,7 @@ class Fingerprint:
         if interactions is None:
             interactions = DEFAULT_INTERACTIONS
         elif interactions == "all":
-            interactions = [
-                i for i in self.list_available() if not i.startswith("Implicit")
-            ]
+            interactions = [i for i in self.list_available() if not i.startswith("Implicit")]
 
         if implicit_hydrogens:
             temp_interactions: list[str] = []
@@ -342,13 +340,9 @@ class Fingerprint:
                 interaction_cls = _INTERACTIONS[name]
                 interaction = interaction_cls(**parameters.get(name, {}))
                 setattr(self, name.lower(), interaction)
-                self.interactions[name] = (
-                    interaction.all if self.count else interaction.any
-                )
+                self.interactions[name] = interaction.all if self.count else interaction.any
 
-    def _check_valid_interactions(
-        self, interactions_iterable: Iterable[str], varname: str
-    ) -> None:
+    def _check_valid_interactions(self, interactions_iterable: Iterable[str], varname: str) -> None:
         """Raises a NameError if an unknown interaction is given."""
         unsafe = set(interactions_iterable)
         known = {*_INTERACTIONS, *_BRIDGED_INTERACTIONS}
@@ -364,9 +358,7 @@ class Fingerprint:
         return f"<{name}: {params} at {id(self):#x}>"
 
     @staticmethod
-    def list_available(
-        show_hidden: bool = False, show_bridged: bool = False
-    ) -> list[str]:
+    def list_available(show_hidden: bool = False, show_bridged: bool = False) -> list[str]:
         """List interactions available to the Fingerprint class.
 
         Parameters
@@ -420,16 +412,10 @@ class Fingerprint:
             An array storing the encoded interactions between res1 and res2. Depending
             on :attr:`Fingerprint.count`, the dtype of the array will be bool or uint8.
         """
-        bitvector = [
-            interaction(res1, res2, metadata=False)
-            for interaction in self.interactions.values()
-        ]
+        bitvector = [interaction(res1, res2, metadata=False) for interaction in self.interactions.values()]
         if self.count:
             return np.array(
-                [
-                    sum(bits)
-                    for bits in cast(list[tuple[Literal[True], ...]], bitvector)
-                ],
+                [sum(bits) for bits in cast(list[tuple[Literal[True], ...]], bitvector)],
                 dtype=np.uint8,
             )
         return np.array(cast(list[Literal[True] | None], bitvector), dtype=bool)
@@ -541,9 +527,7 @@ class Fingerprint:
             tuple of arrays.
 
         """
-        ifp: IFP | dict[tuple["ResidueId", "ResidueId"], "NDArray"] = (
-            IFP() if metadata else {}
-        )
+        ifp: IFP | dict[tuple["ResidueId", "ResidueId"], "NDArray"] = IFP() if metadata else {}
         prot_residues = prot.residues if residues == "all" else residues
         get_interactions = self.metadata if metadata else self.bitvector
         for lresid, lres in lig.residues.items():
@@ -672,20 +656,12 @@ class Fingerprint:
         n_jobs = get_n_jobs(n_jobs, capped=True)
         parallel_strategy = get_mda_parallel_strategy(parallel_strategy, traj)
         converter_kwargs = converter_kwargs or ({}, {})
-        if (
-            self.bridged_interactions
-            and (maxsize := atomgroup_to_mol.cache_parameters()["maxsize"])
-            and maxsize <= 2
-        ):
+        if self.bridged_interactions and (maxsize := atomgroup_to_mol.cache_parameters()["maxsize"]) and maxsize <= 2:
             set_converter_cache_size(2 + len(self.bridged_interactions))
         if self.use_segid is None:
             self.use_segid = self._use_segid(lig, prot)
         if residues == "all":
-            residues = list(
-                Molecule.from_mda(
-                    prot, use_segid=self.use_segid, **converter_kwargs[1]
-                ).residues
-            )
+            residues = list(Molecule.from_mda(prot, use_segid=self.use_segid, **converter_kwargs[1]).residues)
 
         if self.interactions:
             if n_jobs == 1:
@@ -751,15 +727,9 @@ class Fingerprint:
         iterator = tqdm(traj, **kwargs) if progress else traj
         ifp: "IFPResults" = {}
         for ts in iterator:
-            lig_mol = Molecule.from_mda(
-                lig, use_segid=self.use_segid, **converter_kwargs[0]
-            )
-            prot_mol = Molecule.from_mda(
-                prot, use_segid=self.use_segid, **converter_kwargs[1]
-            )
-            ifp[int(ts.frame)] = self.generate(
-                lig_mol, prot_mol, residues=residues, metadata=True
-            )
+            lig_mol = Molecule.from_mda(lig, use_segid=self.use_segid, **converter_kwargs[0])
+            prot_mol = Molecule.from_mda(prot, use_segid=self.use_segid, **converter_kwargs[1])
+            ifp[int(ts.frame)] = self.generate(lig_mol, prot_mol, residues=residues, metadata=True)
         return ifp
 
     def _run_parallel(
@@ -779,11 +749,7 @@ class Fingerprint:
         try:
             n_frames = traj.n_frames
         except AttributeError:
-            if (
-                hasattr(traj, "start")
-                and hasattr(traj, "stop")
-                and hasattr(traj, "step")
-            ):
+            if hasattr(traj, "start") and hasattr(traj, "stop") and hasattr(traj, "step"):
                 # sliced trajectory
                 frames: Sequence[int] = range(traj.start, traj.stop, traj.step)
                 if parallel_strategy == "chunk":
@@ -972,11 +938,7 @@ class Fingerprint:
         **kwargs: Any,
     ) -> "IFPResults":
         """Parallel implementation of :meth:`~Fingerprint.run_from_iterable`"""
-        total = (
-            len(lig_iterable)
-            if isinstance(lig_iterable, Chem.SDMolSupplier | Sized)
-            else None
-        )
+        total = len(lig_iterable) if isinstance(lig_iterable, Chem.SDMolSupplier | Sized) else None
         ifp: "IFPResults" = {}
 
         with MolIterablePool(
@@ -1011,7 +973,7 @@ class Fingerprint:
             An MDAnalysis AtomGroup for the protein (with multiple residues)
 
         .. versionadded:: 2.1.0
-        """  # noqa: E501
+        """
         self.ifp = cast("IFPResults", getattr(self, "ifp", {}))
         for interaction in self.bridged_interactions.values():
             interaction.setup(ifp_store=self.ifp, ignore=self.ignore, **kwargs)
@@ -1226,7 +1188,7 @@ class Fingerprint:
         with warnings.catch_warnings():
             warnings.filterwarnings(
                 "ignore",
-                r"The .+ interaction has been superseded by a new class",  # pragma: no cover  # noqa: E501
+                r"The .+ interaction has been superseded by a new class",  # pragma: no cover
             )
             if isinstance(path_or_bytes, bytes):
                 return dill.loads(path_or_bytes)  # type: ignore[no-any-return]

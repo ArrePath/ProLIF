@@ -1,4 +1,4 @@
-name: "Ruff/Black"
+name: "Ruff"
 
 on:
   push:
@@ -13,22 +13,18 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
 
-      - name: Code formatting
-        uses: astral-sh/ruff-action@v2
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2  # v10.3.3
         with:
-          version: 0.11.2
-          args: "format --diff"
+          python-version: "3.14"
+          enable-cache: false
 
-      - name: Notebook formatting
-        uses: psf/black@stable
-        with:
-          src: "docs/notebooks/"
-          jupyter: true
+      - name: Code and notebook formatting
+        run: uvx --from pre-commit==4.6.2 pre-commit run ruff-format --all-files --show-diff-on-failure
 
       - name: Code linting
-        uses: astral-sh/ruff-action@v2
+        uses: astral-sh/ruff-action@278981a28ce3188b1e39527901f38254bf3aac89  # v4.1.0
         with:
-          version: 0.11.2
+          version: 0.17.4
           args: "check --preview --diff"

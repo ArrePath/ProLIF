@@ -150,9 +150,7 @@ class Progress:
 
     delay: ClassVar[float] = 0.5
 
-    def __init__(
-        self, killswitch: Event, tracker: "Synchronized", **kwargs: Any
-    ) -> None:
+    def __init__(self, killswitch: Event, tracker: "Synchronized", **kwargs: Any) -> None:
         self.tqdm_pbar = tqdm(**kwargs)
         self.killswitch = killswitch
         self.tracker = tracker
@@ -262,9 +260,7 @@ class TrajectoryPool:
         cls.use_segid = use_segid
 
     @classmethod
-    def executor(
-        cls, args: tuple["Trajectory", "MDAObject", "MDAObject", "NDArray"]
-    ) -> "IFPResults":
+    def executor(cls, args: tuple["Trajectory", "MDAObject", "MDAObject", "NDArray"]) -> "IFPResults":
         """Classmethod executed by each child process on a chunk of the trajectory
 
         Returns
@@ -275,12 +271,8 @@ class TrajectoryPool:
         traj, lig, prot, chunk = args
         ifp: "IFPResults" = {}
         for ts in traj[chunk]:
-            lig_mol = Molecule.from_mda(
-                lig, use_segid=cls.use_segid, **cls.converter_kwargs[0]
-            )
-            prot_mol = Molecule.from_mda(
-                prot, use_segid=cls.use_segid, **cls.converter_kwargs[1]
-            )
+            lig_mol = Molecule.from_mda(lig, use_segid=cls.use_segid, **cls.converter_kwargs[0])
+            prot_mol = Molecule.from_mda(prot, use_segid=cls.use_segid, **cls.converter_kwargs[1])
             data = cls.fp.generate(
                 lig_mol,
                 prot_mol,
@@ -294,9 +286,7 @@ class TrajectoryPool:
 
     def process(
         self,
-        args_iterable: Iterable[
-            tuple["Trajectory", "MDAObject", "MDAObject", "NDArray"]
-        ],
+        args_iterable: Iterable[tuple["Trajectory", "MDAObject", "MDAObject", "NDArray"]],
     ) -> list["IFPResults"]:
         """Maps the input iterable of arguments to the executor function.
 
@@ -545,12 +535,8 @@ class TrajectoryPoolQueue:
         def frame_generator() -> Iterable[tuple[int, Molecule, Molecule]]:
             """Generator that yields (frame, lig_mol, prot_mol) tuples."""
             for ts in traj:
-                lig_mol = Molecule.from_mda(
-                    lig, use_segid=self.use_segid, **self.converter_kwargs[0]
-                )
-                prot_mol = Molecule.from_mda(
-                    prot, use_segid=self.use_segid, **self.converter_kwargs[1]
-                )
+                lig_mol = Molecule.from_mda(lig, use_segid=self.use_segid, **self.converter_kwargs[0])
+                prot_mol = Molecule.from_mda(prot, use_segid=self.use_segid, **self.converter_kwargs[1])
                 yield int(ts.frame), lig_mol, prot_mol
 
         ifp: "IFPResults" = {}

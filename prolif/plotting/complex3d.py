@@ -100,7 +100,7 @@ class Complex3D:
         aren't involved in an interaction. Added ``only_interacting`` parameter to the
         ``display`` and ``compare`` methods to show all protein residues in the
         vicinity of the ligand, or only the ones participating in an interaction.
-    """  # noqa: E501
+    """
 
     COLORS: ClassVar[dict[str, str]] = {**separated_interaction_colors}
     LIGAND_STYLE: ClassVar[dict] = {"stick": {"colorscheme": "cyanCarbon"}}
@@ -190,8 +190,7 @@ class Complex3D:
         """
         if not hasattr(fp, "ifp"):
             raise RunRequiredError(
-                "Please run the fingerprint analysis before attempting to display"
-                " results.",
+                "Please run the fingerprint analysis before attempting to display results.",
             )
         ifp = fp.ifp[frame]
         return cls(ifp, lig_mol, prot_mol, water_mol)
@@ -308,23 +307,11 @@ class Complex3D:
         v.removeAllModels()
 
         # get set of interactions for both poses
-        interactions1 = {
-            (resid[1], i)
-            for resid, interactions in self.ifp.items()
-            for i in interactions
-        }
-        interactions2 = {
-            (resid[1], i)
-            for resid, interactions in other.ifp.items()
-            for i in interactions
-        }
+        interactions1 = {(resid[1], i) for resid, interactions in self.ifp.items() for i in interactions}
+        interactions2 = {(resid[1], i) for resid, interactions in other.ifp.items() for i in interactions}
 
         # get residues with interactions specific to pose 1
-        highlights = (
-            {r[0]: color_unique for r in interactions1 - interactions2}
-            if color_unique
-            else {}
-        )
+        highlights = {r[0]: color_unique for r in interactions1 - interactions2} if color_unique else {}
         self._populate_view(
             v,
             position=(0, 0),
@@ -335,11 +322,7 @@ class Complex3D:
         )
 
         # get residues with interactions specific to pose 2
-        highlights = (
-            {r[0]: color_unique for r in interactions2 - interactions1}
-            if color_unique
-            else {}
-        )
+        highlights = {r[0]: color_unique for r in interactions2 - interactions1} if color_unique else {}
         other._populate_view(
             v,
             position=(0, 1),
@@ -389,60 +372,38 @@ class Complex3D:
                 (presid, pres, self.RESIDUES_STYLE, sanitize in {"protein", True}),
             ]:
                 if resid not in self._models:
-                    self._add_residue_to_view(
-                        v, position, res, style, kekulize=kekulize
-                    )
+                    self._add_residue_to_view(v, position, res, style, kekulize=kekulize)
             for interaction, metadata_tuple in interactions.items():
                 # whether to display all interactions or only the one with the shortest
                 # distance
                 for metadata in metadata_iterator(metadata_tuple, display_all):
                     # record indices of atoms interacting
-                    self._interacting_atoms["ligand"].update(
-                        metadata["parent_indices"]["ligand"]
-                    )
-                    self._interacting_atoms["protein"].update(
-                        metadata["parent_indices"]["protein"]
-                    )
+                    self._interacting_atoms["ligand"].update(metadata["parent_indices"]["ligand"])
+                    self._interacting_atoms["protein"].update(metadata["parent_indices"]["protein"])
                     if interaction in self.BRIDGED_INTERACTIONS and self.water_mol:
                         self._interacting_atoms["water"].update(
-                            metadata["parent_indices"][
-                                self.BRIDGED_INTERACTIONS[interaction]
-                            ]
+                            metadata["parent_indices"][self.BRIDGED_INTERACTIONS[interaction]]
                         )
                         for wresid in metadata["water_residues"]:
                             wres = self.water_mol[wresid]
                             if wresid not in self._models:
-                                self._add_residue_to_view(
-                                    v, position, wres, self.RESIDUES_STYLE
-                                )
+                                self._add_residue_to_view(v, position, wres, self.RESIDUES_STYLE)
                         # show cylinders for WaterBridge
                         distances = [d for d in metadata if d.startswith("distance_")]
                         for distlabel in distances:
                             _, src, dest = distlabel.split("_")
                             if src == "ligand":
                                 p1 = lres.GetConformer().GetAtomPosition(
-                                    metadata["indices"]["ligand"][
-                                        self.LIGAND_DISPLAYED_ATOM.get(interaction, 0)
-                                    ],
+                                    metadata["indices"]["ligand"][self.LIGAND_DISPLAYED_ATOM.get(interaction, 0)],
                                 )
                             else:
-                                p1 = (
-                                    self.water_mol[src]
-                                    .GetConformer()
-                                    .GetAtomPosition(metadata["indices"][src][0])
-                                )
+                                p1 = self.water_mol[src].GetConformer().GetAtomPosition(metadata["indices"][src][0])
                             if dest == "protein":
                                 p2 = pres.GetConformer().GetAtomPosition(
-                                    metadata["indices"]["protein"][
-                                        self.PROTEIN_DISPLAYED_ATOM.get(interaction, 0)
-                                    ],
+                                    metadata["indices"]["protein"][self.PROTEIN_DISPLAYED_ATOM.get(interaction, 0)],
                                 )
                             else:
-                                p2 = (
-                                    self.water_mol[dest]
-                                    .GetConformer()
-                                    .GetAtomPosition(metadata["indices"][dest][0])
-                                )
+                                p2 = self.water_mol[dest].GetConformer().GetAtomPosition(metadata["indices"][dest][0])
 
                             self._add_interaction(
                                 v,
@@ -457,14 +418,10 @@ class Complex3D:
                     else:
                         # get coordinates for both points of the interaction
                         if interaction in self.LIGAND_RING_INTERACTIONS:
-                            p1 = self.get_ring_centroid(
-                                lres, metadata["indices"]["ligand"]
-                            )
+                            p1 = self.get_ring_centroid(lres, metadata["indices"]["ligand"])
                         else:
                             p1 = lres.GetConformer().GetAtomPosition(
-                                metadata["indices"]["ligand"][
-                                    self.LIGAND_DISPLAYED_ATOM.get(interaction, 0)
-                                ],
+                                metadata["indices"]["ligand"][self.LIGAND_DISPLAYED_ATOM.get(interaction, 0)],
                             )
                         if interaction in self.PROTEIN_RING_INTERACTIONS:
                             p2 = self.get_ring_centroid(
@@ -473,15 +430,11 @@ class Complex3D:
                             )
                         else:
                             p2 = pres.GetConformer().GetAtomPosition(
-                                metadata["indices"]["protein"][
-                                    self.PROTEIN_DISPLAYED_ATOM.get(interaction, 0)
-                                ],
+                                metadata["indices"]["protein"][self.PROTEIN_DISPLAYED_ATOM.get(interaction, 0)],
                             )
                         # add interaction line
                         dist = metadata.get("distance", float("nan"))
-                        self._add_interaction(
-                            v, position, lresid, interaction, dist, p1, p2
-                        )
+                        self._add_interaction(v, position, lresid, interaction, dist, p1, p2)
 
         # show "protein" residues that are close to the "ligand"
         if not only_interacting:

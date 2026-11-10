@@ -6,14 +6,10 @@ from MDAnalysis.topology.tables import vdwradii
 from rdkit.Chem import GetPeriodicTable
 from rdkit.Chem.rdchem import HybridizationType
 
-VDWRADII: dict[str, float] = {
-    symbol.capitalize(): radius for symbol, radius in vdwradii.items()
-}
+VDWRADII: dict[str, float] = {symbol.capitalize(): radius for symbol, radius in vdwradii.items()}
 
 PT = GetPeriodicTable()
-RDKIT_VDWRADII: dict[str, float] = {
-    PT.GetElementSymbol(i): PT.GetRvdw(i) for i in range(1, 119)
-}
+RDKIT_VDWRADII: dict[str, float] = {PT.GetElementSymbol(i): PT.GetRvdw(i) for i in range(1, 119)}
 
 # Table 1 of https://doi.org/10.1039/C3DT50599E
 CSD_VDWRADII: dict[str, float] = {

@@ -47,8 +47,7 @@ def requires(
             if find_spec(module):
                 return func(*args, **kwargs)
             raise ModuleNotFoundError(
-                f"The module {module!r} is required to use {func.__name__!r} "
-                "but it is not installed!",
+                f"The module {module!r} is required to use {func.__name__!r} but it is not installed!",
             )
 
         return wrapper
@@ -84,9 +83,7 @@ def get_centroid(
     return np.mean(coordinates, axis=0)  # type: ignore[no-any-return]
 
 
-def get_ring_normal_vector(
-    centroid: Point3D, coordinates: "NDArray[np.float64]"
-) -> Point3D:
+def get_ring_normal_vector(centroid: Point3D, coordinates: "NDArray[np.float64]") -> Point3D:
     """Returns a vector that is normal to the ring plane"""
     # A & B are two edges of the ring
     a = Point3D(*coordinates[0])
@@ -99,9 +96,7 @@ def get_ring_normal_vector(
     return ca.CrossProduct(cb)
 
 
-def angle_between_limits(
-    angle: float, min_angle: float, max_angle: float, *, ring: bool = False
-) -> bool:
+def angle_between_limits(angle: float, min_angle: float, max_angle: float, *, ring: bool = False) -> bool:
     """Checks if an angle value is between min and max angles in radian
 
     Parameters
@@ -163,9 +158,7 @@ def get_residues_near_ligand(
         lig.xyz, cutoff
     )
     ix = {i for lst in ix for i in lst}
-    resids = [
-        ResidueId.from_atom(prot.GetAtomWithIdx(i), use_segid=use_segid) for i in ix
-    ]
+    resids = [ResidueId.from_atom(prot.GetAtomWithIdx(i), use_segid=use_segid) for i in ix]
     return list(set(resids))
 
 
@@ -190,14 +183,10 @@ def split_mol_by_residues(mol: Chem.Mol) -> list[Chem.Mol]:
     for res in SplitMolByPDBResidues(mol).values():
         for frag in GetMolFrags(res, asMols=True, sanitizeFrags=False):
             # count number of unique residues in the fragment
-            resids: dict[int, ResidueId] = {
-                a.GetIdx(): ResidueId.from_atom(a) for a in frag.GetAtoms()
-            }
+            resids: dict[int, ResidueId] = {a.GetIdx(): ResidueId.from_atom(a) for a in frag.GetAtoms()}
             if len(set(resids.values())) > 1:
                 # split on peptide bonds
-                bonds = [
-                    b.GetIdx() for b in frag.GetBonds() if is_peptide_bond(b, resids)
-                ]
+                bonds = [b.GetIdx() for b in frag.GetBonds() if is_peptide_bond(b, resids)]
                 mols = FragmentOnBonds(frag, bonds, addDummies=False)
                 mols = GetMolFrags(mols, asMols=True, sanitizeFrags=False)
                 residues.extend(mols)
@@ -284,9 +273,7 @@ def to_dataframe(
     empty_value = dtype(0)
     # create empty array for each residue pair interaction that doesn't exist
     # in a particular frame
-    empty_arr: NDArray = np.array(
-        [empty_value for _ in range(n_interactions)], dtype=dtype
-    )
+    empty_arr: NDArray = np.array([empty_value for _ in range(n_interactions)], dtype=dtype)
     # residue pairs
     residue_pairs = sorted(
         {residue_tuple for frame_ifp in ifp.values() for residue_tuple in frame_ifp},
@@ -319,17 +306,10 @@ def to_dataframe(
         warnings.warn("No interaction detected", stacklevel=2)
         return pd.DataFrame([], index=index)
     values = np.array(
-        [
-            np.hstack([bitvector_list[frame] for bitvector_list in data.values()])
-            for frame in range(len(index))
-        ],
+        [np.hstack([bitvector_list[frame] for bitvector_list in data.values()]) for frame in range(len(index))],
     )
     columns = pd.MultiIndex.from_tuples(
-        [
-            (str(lig_res), str(prot_res), i)
-            for lig_res, prot_res in residue_pairs
-            for i in interactions
-        ],
+        [(str(lig_res), str(prot_res), i) for lig_res, prot_res in residue_pairs for i in interactions],
         names=["ligand", "protein", "interaction"],
     )
     df = pd.DataFrame(values, columns=columns, index=index)
@@ -427,9 +407,7 @@ def select_over_trajectory(  # type: ignore[no-any-unimported]
     trajectory = (trajectory,) if isinstance(trajectory, Timestep) else trajectory
     for _ in tqdm(trajectory):
         for i, sel in enumerate(selections):
-            groups[f"group{i}"] = group = u.select_atoms(
-                sel.format(*groups), **{**kwargs, **groups}
-            )
+            groups[f"group{i}"] = group = u.select_atoms(sel.format(*groups), **{**kwargs, **groups})
             ix[i].update(group.ix)
     atomgroups = [AtomGroup(sorted(indices), u) for indices in ix]
     return atomgroups[0] if len(atomgroups) == 1 else atomgroups

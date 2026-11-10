@@ -55,9 +55,7 @@ class IFP(UserDict[tuple[ResidueId, ResidueId], "IFPData"]):
     """
 
     @overload
-    def __getitem__(
-        self, key: tuple[ResidueId, ResidueId] | tuple[str, str]
-    ) -> "IFPData": ...
+    def __getitem__(self, key: tuple[ResidueId, ResidueId] | tuple[str, str]) -> "IFPData": ...
 
     @overload
     def __getitem__(self, key: ResidueId | str) -> "IFP": ...
